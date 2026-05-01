@@ -141,7 +141,11 @@ export function GameRoom({ user }: { user: User }) {
     const seenPenalty = isDubli ? rules.dubliSeen : rules.normalSeen;
     const unseenPenalty = isDubli ? rules.unseenPenalty || rules.normalUnseen : rules.normalUnseen;
 
+    const gamePoints: Record<string, number> = {};
+    const maalPoints: Record<string, number> = {};
     pids.forEach(pid => {
+      gamePoints[pid] = 0;
+      maalPoints[pid] = 0;
       scores[pid] = {
         maal: parsedMaal[pid],
         seen: seenStatus[pid] || pid === winnerId,
@@ -150,15 +154,15 @@ export function GameRoom({ user }: { user: User }) {
       };
     });
 
-    let winnerGamePoints = 0;
+    let winnerGamePointsTally = 0;
     pids.forEach(pid => {
       if (pid !== winnerId) {
         const penalty = (seenStatus[pid] || pid === winnerId) ? seenPenalty : unseenPenalty;
-        scores[pid].points -= penalty;
-        winnerGamePoints += penalty;
+        gamePoints[pid] -= penalty;
+        winnerGamePointsTally += penalty;
       }
     });
-    scores[winnerId].points += winnerGamePoints;
+    gamePoints[winnerId] += winnerGamePointsTally;
 
     // Maal difference tally
     for (let i = 0; i < pids.length; i++) {
@@ -171,11 +175,19 @@ export function GameRoom({ user }: { user: User }) {
             
             if (i < j) {
                 const diff = validMaalA - validMaalB;
-                scores[A].points += diff;
-                scores[B].points -= diff;
+                maalPoints[A] += diff;
+                maalPoints[B] -= diff;
             }
         }
     }
+
+    pids.forEach(pid => {
+      scores[pid].points = gamePoints[pid] + maalPoints[pid];
+      scores[pid].details = {
+        gamePoints: gamePoints[pid],
+        maalPoints: maalPoints[pid]
+      };
+    });
 
     return scores;
   }, [game, currentMaalInputs, seenStatus, winnerId, isDubli, faultPlayer]);
@@ -555,12 +567,21 @@ export function GameRoom({ user }: { user: User }) {
                           {game.playerIds.map(pid => {
                             const pScore = m.scores[pid];
                             return (
-                              <TableCell key={pid} className="text-right font-mono font-bold">
-                                <div className="flex items-center justify-end gap-1">
-                                  <span className={pScore?.points > 0 ? 'text-emerald-400' : pScore?.points < 0 ? 'text-rose-400' : 'text-slate-500'}>
-                                    {pScore?.points > 0 ? '+' : ''}{pScore?.points ?? 0}
-                                  </span>
-                                  {pScore?.winner && <Trophy className="w-3 h-3 text-amber-500" fill="currentColor" />}
+                              <TableCell key={pid} className="text-right font-mono">
+                                <div className="flex flex-col items-end">
+                                  <div className="flex items-center gap-1">
+                                    <span className={`text-sm font-bold ${pScore?.points > 0 ? 'text-emerald-400' : pScore?.points < 0 ? 'text-rose-400' : 'text-slate-500'}`}>
+                                      {pScore?.points > 0 ? '+' : ''}{pScore?.points ?? 0}
+                                    </span>
+                                    {pScore?.winner && <Trophy className="w-3 h-3 text-amber-500" fill="currentColor" />}
+                                  </div>
+                                  {pScore?.details && (
+                                    <div className="flex items-center gap-1 text-[8px] font-bold text-slate-500 uppercase tracking-tighter opacity-70 group-hover:opacity-100 transition-opacity">
+                                      <span>G: {pScore.details.gamePoints > 0 ? '+' : ''}{pScore.details.gamePoints}</span>
+                                      <span>|</span>
+                                      <span>M: {pScore.details.maalPoints > 0 ? '+' : ''}{pScore.details.maalPoints}</span>
+                                    </div>
+                                  )}
                                 </div>
                               </TableCell>
                             );

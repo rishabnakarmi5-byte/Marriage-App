@@ -2,7 +2,11 @@ export type PlayerScore = {
   maal: number;
   seen: boolean;
   winner: boolean;
-  points: number; // calculated points this round
+  points: number;
+  details?: {
+    gamePoints: number;
+    maalPoints: number;
+  };
 };
 
 export type MatchData = {
@@ -35,6 +39,7 @@ export type GameData = {
   players: Record<string, { name: string; totalScore: number }>;
   currentMatch: number;
   rules: GameRules;
+  isDemo?: boolean;
   matchCount?: number;
   lastWinnerId?: string | null;
   createdAt: number;

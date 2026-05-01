@@ -78,6 +78,55 @@ export function Dashboard({ user }: { user: User }) {
     }
   };
 
+  const handleCreateDemo = async () => {
+    playTap();
+    setLoading(true);
+    try {
+      // 1. Create Game
+      const gameRef = await addDoc(collection(db, 'games'), {
+        ownerId: user.uid,
+        status: 'playing',
+        playerIds: [user.uid, 'bot-1', 'bot-2', 'bot-3'],
+        players: {
+          [user.uid]: { name: user.displayName || 'You', totalScore: 35 },
+          'bot-1': { name: 'Aayush', totalScore: -12 },
+          'bot-2': { name: 'Sujal', totalScore: 18 },
+          'bot-3': { name: 'Prajwol', totalScore: -41 }
+        },
+        currentMatch: 3,
+        rules: rules,
+        isDemo: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      // 2. Add Dummy Matches
+      const matchesRef = collection(db, 'games', gameRef.id, 'matches');
+      await addDoc(matchesRef, {
+        matchNumber: 1,
+        type: 'normal',
+        isFault: false,
+        faultPlayerId: null,
+        scores: {
+          [user.uid]: { points: 25, maal: 12, seen: true, winner: true, details: { gamePoints: 13, maalPoints: 12 } },
+          'bot-1': { points: -5, maal: 5, seen: true, winner: false, details: { gamePoints: -3, maalPoints: -2 } },
+          'bot-2': { points: -8, maal: 2, seen: true, winner: false, details: { gamePoints: -3, maalPoints: -5 } },
+          'bot-3': { points: -12, maal: 0, seen: false, winner: false, details: { gamePoints: -7, maalPoints: -5 } }
+        },
+        createdAt: Date.now() - 100000,
+        updatedAt: Date.now() - 100000
+      });
+
+      playSuccess();
+      navigate(`/game/${gameRef.id}`);
+    } catch (error: any) {
+      console.error(error);
+      toast.error('Failed to create demo');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleJoinGame = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!joinId.trim()) return;
@@ -109,9 +158,20 @@ export function Dashboard({ user }: { user: User }) {
         <h2 className="text-3xl md:text-4xl font-extrabold gradient-text mb-2">
           Ready to Play?
         </h2>
-        <p className="text-slate-400 text-lg">
+        <p className="text-slate-400 text-lg mb-6">
           Configure your rules and deal the cards!
         </p>
+        <div className="flex flex-wrap justify-center gap-3">
+          <Button 
+            variant="outline" 
+            onClick={handleCreateDemo} 
+            disabled={loading}
+            className="border-amber-500/30 text-amber-500 hover:bg-amber-500/10 rounded-full px-6"
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            Try Demo Mode
+          </Button>
+        </div>
       </motion.div>
 
       {/* Action cards */}
