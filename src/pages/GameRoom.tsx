@@ -1,0 +1,628 @@
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { User } from 'firebase/auth';
+import { doc, onSnapshot, updateDoc, arrayUnion, serverTimestamp, collection, query, orderBy, addDoc, deleteDoc, getDocs } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { GameData, MatchData, PlayerScore } from '../types';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../../components/ui/card';
+import { Input } from '../../components/ui/input';
+import { Label } from '../../components/ui/label';
+import { Checkbox } from '../../components/ui/checkbox';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
+import { Loader2, Trophy, AlertTriangle, Play, UserPlus, ArrowLeft, History, Calculator, UserCircle2, Crown, Zap, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { motion, AnimatePresence } from 'motion/react';
+import { playTap, playSuccess, playError, playToggle, playTick, playFanfare, playCardDeal, playNav } from '../lib/sounds';
+
+export function GameRoom({ user }: { user: User }) {
+  const { gameId } = useParams<{ gameId: string }>();
+  const navigate = useNavigate();
+  const [game, setGame] = useState<GameData | null>(null);
+  const [matches, setMatches] = useState<MatchData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Match Input State
+  const [currentMaalInputs, setCurrentMaalInputs] = useState<Record<string, string>>({});
+  const [seenStatus, setSeenStatus] = useState<Record<string, boolean>>({});
+  const [winnerId, setWinnerId] = useState<string>('');
+  const [isDubli, setIsDubli] = useState(false);
+  const [faultPlayer, setFaultPlayer] = useState<string>('none');
+  const [submittingMatch, setSubmittingMatch] = useState(false);
+
+  useEffect(() => {
+    if (!gameId) return;
+    const unsubGame = onSnapshot(doc(db, 'games', gameId), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data() as GameData;
+        setGame({ ...data, id: docSnap.id });
+      } else {
+        toast.error('Game not found');
+        navigate('/');
+      }
+      setLoading(false);
+    });
+
+    const matchesRef = collection(db, 'games', gameId, 'matches');
+    const q = query(matchesRef, orderBy('createdAt', 'desc'));
+    const unsubMatches = onSnapshot(q, (snap) => {
+      const m = snap.docs.map(d => ({ ...d.data(), id: d.id } as MatchData));
+      setMatches(m);
+    });
+
+    return () => {
+      unsubGame();
+      unsubMatches();
+    };
+  }, [gameId, navigate]);
+
+  useEffect(() => {
+    if (game && game.playerIds) {
+      const actSeen = { ...seenStatus };
+      game.playerIds.forEach(pid => {
+        if (actSeen[pid] === undefined) actSeen[pid] = true;
+      });
+      setSeenStatus(actSeen);
+    }
+  }, [game?.playerIds]);
+
+  const joinGame = async () => {
+    playTap();
+    if (!gameId || !game) return;
+    if (game.playerIds.includes(user.uid)) return;
+    if (game.playerIds.length >= 6) {
+      toast.error('Game is full (max 6 players)');
+      return;
+    }
+    try {
+      await updateDoc(doc(db, 'games', gameId), {
+        playerIds: arrayUnion(user.uid),
+        [`players.${user.uid}`]: { name: user.displayName || 'Player', totalScore: 0 },
+        updatedAt: serverTimestamp()
+      });
+      playSuccess();
+    } catch (e) {
+      toast.error('Failed to join game');
+    }
+  };
+
+  const startGame = async () => {
+    playTap();
+    if (!gameId || !game || game.ownerId !== user.uid) return;
+    if (game.playerIds.length < 2) {
+      toast.error('Need at least 2 players');
+      return;
+    }
+    await updateDoc(doc(db, 'games', gameId), {
+      status: 'playing',
+      currentMatch: 1,
+      updatedAt: serverTimestamp()
+    });
+    playCardDeal();
+  };
+
+  const calculatePoints = useCallback(() => {
+    if (!game) return null;
+    const scores: Record<string, PlayerScore> = {};
+    const pids = game.playerIds;
+    
+    const parsedMaal: Record<string, number> = {};
+    pids.forEach(pid => {
+      parsedMaal[pid] = parseInt(currentMaalInputs[pid] || '0', 10);
+      if (isNaN(parsedMaal[pid])) parsedMaal[pid] = 0;
+    });
+
+    // Case: Fault
+    if (faultPlayer !== 'none' && pids.includes(faultPlayer)) {
+      pids.forEach(pid => {
+        scores[pid] = {
+          maal: 0,
+          seen: true,
+          winner: false,
+          points: pid === faultPlayer ? -15 * (pids.length - 1) : 15
+        };
+      });
+      return scores;
+    }
+
+    if (!winnerId) return null;
+
+    // Standard Math
+    const gamePointMultiplier = isDubli ? 2 : 1;
+    const seenPenalty = 3 * gamePointMultiplier;
+    const unseenPenalty = 10 * gamePointMultiplier;
+
+    pids.forEach(pid => {
+      scores[pid] = {
+        maal: parsedMaal[pid],
+        seen: seenStatus[pid] || pid === winnerId,
+        winner: pid === winnerId,
+        points: 0
+      };
+    });
+
+    let winnerGamePoints = 0;
+    pids.forEach(pid => {
+      if (pid !== winnerId) {
+        const penalty = (seenStatus[pid] || pid === winnerId) ? seenPenalty : unseenPenalty;
+        scores[pid].points -= penalty;
+        winnerGamePoints += penalty;
+      }
+    });
+    scores[winnerId].points += winnerGamePoints;
+
+    // Maal difference tally
+    for (let i = 0; i < pids.length; i++) {
+        const A = pids[i];
+        for (let j = 0; j < pids.length; j++) {
+            if (i === j) continue;
+            const B = pids[j];
+            const validMaalA = scores[A].seen ? scores[A].maal : 0;
+            const validMaalB = scores[B].seen ? scores[B].maal : 0;
+            
+            if (i < j) {
+                const diff = validMaalA - validMaalB;
+                scores[A].points += diff;
+                scores[B].points -= diff;
+            }
+        }
+    }
+
+    return scores;
+  }, [game, currentMaalInputs, seenStatus, winnerId, isDubli, faultPlayer]);
+
+  const previewScores = useMemo(() => calculatePoints(), [calculatePoints]);
+
+  const submitMatch = async () => {
+    playTap();
+    if (!game || !gameId) return;
+    if (faultPlayer === 'none' && !winnerId) {
+      toast.error('Must select a winner or record a fault.');
+      playError();
+      return;
+    }
+    
+    const calculatedScores = calculatePoints();
+    if (!calculatedScores) {
+      toast.error('Error calculating scores');
+      playError();
+      return;
+    }
+
+    setSubmittingMatch(true);
+    try {
+      const matchDoc = {
+        matchNumber: matches.length + 1,
+        type: isDubli ? 'dubli' : 'normal',
+        isFault: faultPlayer !== 'none',
+        faultPlayerId: faultPlayer === 'none' ? null : faultPlayer,
+        scores: calculatedScores,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      
+      await addDoc(collection(db, 'games', gameId, 'matches'), matchDoc);
+
+      const playersUpdate = { ...game.players };
+      game.playerIds.forEach(pid => {
+        playersUpdate[pid].totalScore += calculatedScores[pid].points;
+      });
+
+      await updateDoc(doc(db, 'games', gameId), {
+        players: playersUpdate,
+        currentMatch: matches.length + 2,
+        lastWinnerId: winnerId || null,
+        updatedAt: serverTimestamp()
+      });
+
+      // Reset
+      setCurrentMaalInputs({});
+      setWinnerId('');
+      setIsDubli(false);
+      setFaultPlayer('none');
+      const resetSeen: Record<string, boolean> = {};
+      game.playerIds.forEach(pid => resetSeen[pid] = true);
+      setSeenStatus(resetSeen);
+
+      playFanfare();
+      toast.success('Match recorded!');
+    } catch (e) {
+      console.error(e);
+      toast.error('Failed to submit match');
+      playError();
+    } finally {
+      setSubmittingMatch(false);
+    }
+  };
+
+  const deleteMatch = async (matchId: string) => {
+    if (!window.confirm('Delete this match? Scores will be reverted.')) return;
+    playTap();
+    try {
+      const matchRef = doc(db, 'games', gameId!, 'matches', matchId);
+      const matchSnap = await getDocs(query(collection(db, 'games', gameId!, 'matches'), orderBy('createdAt', 'desc')));
+      const matchData = matches.find(m => m.id === matchId);
+      
+      if (matchData && game) {
+        const playersUpdate = { ...game.players };
+        game.playerIds.forEach(pid => {
+          playersUpdate[pid].totalScore -= (matchData.scores[pid]?.points || 0);
+        });
+        
+        await updateDoc(doc(db, 'games', gameId!), {
+          players: playersUpdate,
+          updatedAt: serverTimestamp()
+        });
+        await deleteDoc(matchRef);
+        toast.success('Match deleted and scores reverted');
+      }
+    } catch (e) {
+      toast.error('Failed to delete match');
+    }
+  };
+
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center h-64 space-y-4">
+      <Loader2 className="h-10 w-10 animate-spin text-amber-500" />
+      <p className="text-slate-400 font-medium">Loading your game table...</p>
+    </div>
+  );
+  
+  if (!game) return (
+    <div className="text-center p-12 bg-slate-900/50 rounded-3xl border border-slate-800">
+      <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+      <h2 className="text-2xl font-bold mb-2">Game Not Found</h2>
+      <Button onClick={() => navigate('/')} variant="outline" className="mt-4">Back to Dashboard</Button>
+    </div>
+  );
+
+  const inGame = game.playerIds.includes(user.uid);
+  const isOwner = game.ownerId === user.uid;
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-8 pb-20">
+      {/* Header Info */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900/40 p-6 rounded-3xl border border-slate-800/50 backdrop-blur-sm">
+         <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-500/10 rounded-2xl flex items-center justify-center text-amber-500">
+              <History className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-extrabold text-white">Match Center</h2>
+              <p className="text-xs font-mono text-slate-500">ROOM ID: {game.id?.substring(0, 8).toUpperCase()}</p>
+            </div>
+         </div>
+         <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" onClick={() => { playNav(); navigate('/'); }} className="border-slate-700 bg-transparent text-slate-400 hover:text-white">
+              <ArrowLeft className="w-4 h-4 mr-2" /> Dashboard
+            </Button>
+            <div className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${
+              game.status === 'waiting' ? 'badge-waiting' : 'badge-playing'
+            }`}>
+              {game.status === 'waiting' ? '⌛ Waiting' : '🎲 In Progress'}
+            </div>
+         </div>
+      </div>
+
+      {game.status === 'waiting' && (
+        <Card className="card-glow bg-slate-900/60 border-slate-800 overflow-hidden relative">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-bl-full" />
+          <CardHeader>
+            <CardTitle className="text-2xl flex items-center gap-3">
+              <UserPlus className="text-amber-500" />
+              Players ({game.playerIds.length}/6)
+            </CardTitle>
+            <CardDescription className="text-slate-400">Share the Room ID to invite more friends</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+              {game.playerIds.map((pid, idx) => (
+                <motion.div 
+                  key={pid}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.1 }}
+                  className="flex items-center gap-3 bg-slate-800/50 p-4 rounded-2xl border border-slate-700/30"
+                >
+                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center font-bold text-slate-900">
+                     {game.players[pid]?.name.charAt(0).toUpperCase()}
+                   </div>
+                   <div className="flex-1">
+                     <p className="font-bold text-white">{game.players[pid]?.name}</p>
+                     {pid === game.ownerId && <span className="text-[10px] bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full font-bold uppercase">Host</span>}
+                   </div>
+                   {pid === user.uid && <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />}
+                </motion.div>
+              ))}
+            </div>
+            
+            <div className="flex flex-col gap-3">
+              {!inGame && game.playerIds.length < 6 && (
+                <Button onClick={joinGame} size="lg" className="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-6 rounded-2xl">
+                  Join This Table
+                </Button>
+              )}
+              {isOwner && (
+                <Button onClick={startGame} size="lg" disabled={game.playerIds.length < 2} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-6 rounded-2xl shadow-lg shadow-emerald-900/20">
+                  <Play className="w-5 h-5 mr-2" /> Start Game
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {game.status === 'playing' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Main Scoring Area */}
+          <div className="lg:col-span-8 space-y-8">
+            <Card className="card-glow bg-slate-900/60 border-slate-800 shadow-2xl relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-rose-500/10 to-transparent" />
+               <CardHeader className="border-b border-slate-800/50 bg-slate-800/20">
+                 <div className="flex justify-between items-center">
+                    <div>
+                      <CardTitle className="text-2xl font-black text-white flex items-center gap-2">
+                        <Calculator className="text-amber-500" />
+                        Record Match #{matches.length + 1}
+                      </CardTitle>
+                      <CardDescription className="text-slate-500">Calculate points based on maal and seen status</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center space-x-2 bg-slate-800/50 p-2 px-3 rounded-xl border border-slate-700/50">
+                           <Checkbox 
+                             id="dubli" 
+                             checked={isDubli} 
+                             onCheckedChange={(c) => { playToggle(); setIsDubli(!!c); }} 
+                             disabled={faultPlayer !== 'none'}
+                             className="border-rose-500 data-[state=checked]:bg-rose-500"
+                           />
+                           <Label htmlFor="dubli" className="font-bold text-rose-500 text-sm cursor-pointer select-none">DUBLI (x2)</Label>
+                        </div>
+                    </div>
+                 </div>
+               </CardHeader>
+               
+               <CardContent className="pt-6 space-y-6">
+                 {/* Fault Selector */}
+                 <div className="flex items-center justify-between p-4 bg-slate-800/30 rounded-2xl border border-slate-700/30">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-5 h-5 text-rose-500" />
+                      <Label className="font-bold text-slate-300">Penalty / Fault?</Label>
+                    </div>
+                    <Select value={faultPlayer} onValueChange={(v) => { playToggle(); setFaultPlayer(v); if(v!=='none') { setWinnerId(''); setIsDubli(false); } }}>
+                      <SelectTrigger className="w-[180px] bg-slate-800 border-slate-700 text-white rounded-xl">
+                        <SelectValue placeholder="No Fault" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-slate-800 border-slate-700 text-white">
+                        <SelectItem value="none">Regular Round</SelectItem>
+                        {game.playerIds.map(pid => (
+                          <SelectItem key={pid} value={pid}>{game.players[pid].name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                 </div>
+
+                 {/* Player Inputs */}
+                 <div className="space-y-3">
+                    {game.playerIds.map(pid => (
+                      <motion.div 
+                        key={pid}
+                        layout
+                        className={`player-row p-4 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-4 transition-all duration-300 ${
+                          winnerId === pid ? 'is-winner' : faultPlayer === pid ? 'bg-rose-500/10 border-rose-500/30' : 'bg-slate-800/40 border-slate-700/30'
+                        }`}
+                      >
+                         <div className="flex items-center gap-3 flex-1 w-full sm:w-auto">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold relative ${
+                              winnerId === pid ? 'bg-amber-500 text-slate-900 shadow-lg shadow-amber-500/20' : 'bg-slate-700 text-slate-300'
+                            }`}>
+                              {game.players[pid].name.charAt(0).toUpperCase()}
+                              {winnerId === pid && <Crown className="absolute -top-3 -right-2 w-5 h-5 text-amber-400 animate-crown" fill="currentColor" />}
+                            </div>
+                            <div>
+                               <p className="font-bold text-white">{game.players[pid].name}</p>
+                               {previewScores && (
+                                 <p className={`text-xs font-mono font-bold ${previewScores[pid].points > 0 ? 'text-emerald-400' : previewScores[pid].points < 0 ? 'text-rose-400' : 'text-slate-500'}`}>
+                                   {previewScores[pid].points > 0 ? '+' : ''}{previewScores[pid].points} pts
+                                 </p>
+                               )}
+                            </div>
+                         </div>
+
+                         <div className="flex items-center gap-4 w-full sm:w-auto justify-end">
+                            {faultPlayer === 'none' && (
+                              <>
+                                <div className="flex flex-col items-center gap-1.5 px-3">
+                                  <Label className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Seen</Label>
+                                  <Checkbox 
+                                    checked={seenStatus[pid] || winnerId === pid} 
+                                    onCheckedChange={(c) => { playToggle(); setSeenStatus(prev => ({ ...prev, [pid]: !!c })); }} 
+                                    disabled={winnerId === pid}
+                                    className="w-6 h-6 border-slate-600 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+                                  />
+                                </div>
+                                <div className="flex flex-col items-center gap-1.5 px-3 border-x border-slate-700/50">
+                                  <Label className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Winner</Label>
+                                  <Checkbox 
+                                    checked={winnerId === pid} 
+                                    onCheckedChange={(c) => {
+                                      playToggle();
+                                      if (c) {
+                                        setWinnerId(pid);
+                                        setSeenStatus(prev => ({...prev, [pid]: true}));
+                                      } else if (winnerId === pid) {
+                                        setWinnerId('');
+                                      }
+                                    }} 
+                                    className="w-6 h-6 border-slate-600 data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500"
+                                  />
+                                </div>
+                              </>
+                            )}
+                            
+                            <div className="flex flex-col items-start gap-1 w-24">
+                              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Maal</Label>
+                              <Input 
+                                type="number" 
+                                min="0" 
+                                placeholder="0"
+                                className="h-10 bg-slate-800 border-slate-700 text-white rounded-xl text-center font-bold"
+                                disabled={faultPlayer !== 'none'}
+                                value={currentMaalInputs[pid] || ''}
+                                onChange={e => { playTick(); setCurrentMaalInputs(prev => ({ ...prev, [pid]: e.target.value })); }}
+                              />
+                            </div>
+                         </div>
+                      </motion.div>
+                    ))}
+                 </div>
+
+                 <div className="pt-4">
+                    <Button 
+                      onClick={submitMatch} 
+                      disabled={submittingMatch || (faultPlayer === 'none' && !winnerId)} 
+                      className={`w-full py-8 text-xl font-black rounded-2xl shadow-2xl transition-all duration-300 ${
+                        (faultPlayer === 'none' && !winnerId) 
+                        ? 'bg-slate-800 text-slate-600 border border-slate-700 cursor-not-allowed' 
+                        : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-900 animate-pulse-glow border-0'
+                      }`}
+                    >
+                       {submittingMatch ? <Loader2 className="animate-spin w-8 h-8" /> : (
+                         <div className="flex items-center gap-3">
+                           <Zap fill="currentColor" className="w-6 h-6" />
+                           SAVE MATCH DATA
+                         </div>
+                       )}
+                    </Button>
+                 </div>
+               </CardContent>
+            </Card>
+
+            {/* Match History */}
+            <Card className="card-glow bg-slate-900/60 border-slate-800 overflow-hidden shadow-xl">
+               <CardHeader className="border-b border-slate-800/50 bg-slate-800/10">
+                 <CardTitle className="text-xl flex items-center gap-2">
+                   <History className="text-slate-400" />
+                   Recent History
+                 </CardTitle>
+               </CardHeader>
+               <CardContent className="p-0 overflow-x-auto">
+                 <Table>
+                   <TableHeader className="bg-slate-800/30">
+                     <TableRow className="border-slate-800 hover:bg-transparent">
+                        <TableHead className="w-[80px] font-bold text-slate-400">#</TableHead>
+                        <TableHead className="w-[100px] font-bold text-slate-400">Type</TableHead>
+                        {game.playerIds.map(pid => (
+                          <TableHead key={pid} className="text-right font-bold text-slate-400">{game.players[pid].name}</TableHead>
+                        ))}
+                        <TableHead className="w-[60px]"></TableHead>
+                     </TableRow>
+                   </TableHeader>
+                   <TableBody>
+                     {matches.length === 0 ? (
+                       <TableRow>
+                         <TableCell colSpan={game.playerIds.length + 3} className="text-center py-20">
+                            <div className="opacity-20 mb-4 flex justify-center">
+                               <History className="w-16 h-16" />
+                            </div>
+                            <p className="text-slate-500 font-medium italic">No rounds played yet.</p>
+                         </TableCell>
+                       </TableRow>
+                     ) : (
+                       matches.map((m, idx) => (
+                        <TableRow key={m.id || idx} className="border-slate-800/50 hover:bg-slate-800/20 group transition-colors">
+                          <TableCell className="font-mono font-bold text-slate-500">#{m.matchNumber}</TableCell>
+                          <TableCell>
+                             {m.isFault ? (
+                               <span className="text-[10px] bg-rose-500/20 text-rose-500 px-2 py-0.5 rounded-full font-black uppercase border border-rose-500/30">Fault</span>
+                             ) : m.type === 'dubli' ? (
+                               <span className="text-[10px] bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full font-black uppercase border border-amber-500/30">Dubli</span>
+                             ) : (
+                               <span className="text-[10px] bg-slate-700/50 text-slate-400 px-2 py-0.5 rounded-full font-black uppercase">Normal</span>
+                             )}
+                          </TableCell>
+                          {game.playerIds.map(pid => {
+                            const pScore = m.scores[pid];
+                            return (
+                              <TableCell key={pid} className="text-right font-mono font-bold">
+                                <div className="flex items-center justify-end gap-1">
+                                  <span className={pScore?.points > 0 ? 'text-emerald-400' : pScore?.points < 0 ? 'text-rose-400' : 'text-slate-500'}>
+                                    {pScore?.points > 0 ? '+' : ''}{pScore?.points ?? 0}
+                                  </span>
+                                  {pScore?.winner && <Trophy className="w-3 h-3 text-amber-500" fill="currentColor" />}
+                                </div>
+                              </TableCell>
+                            );
+                          })}
+                          <TableCell className="text-right opacity-0 group-hover:opacity-100 transition-opacity">
+                             <Button variant="ghost" size="icon" onClick={() => deleteMatch(m.id!)} className="h-8 w-8 text-rose-500 hover:bg-rose-500/10">
+                               <Trash2 className="w-4 h-4" />
+                             </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                     )}
+                   </TableBody>
+                 </Table>
+               </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar / Leaderboard */}
+          <div className="lg:col-span-4 space-y-6">
+             <Card className="card-glow bg-slate-900/60 border-slate-800 sticky top-24 shadow-2xl">
+               <CardHeader className="bg-gradient-to-r from-amber-500/10 to-transparent border-b border-slate-800/50">
+                 <CardTitle className="text-xl flex items-center gap-3">
+                   <Crown className="text-amber-500" fill="currentColor" />
+                   Leaderboard
+                 </CardTitle>
+                 <CardDescription className="text-slate-500 italic">Total points across all rounds</CardDescription>
+               </CardHeader>
+               <CardContent className="pt-6">
+                 <div className="space-y-4">
+                    {game.playerIds
+                      .sort((a, b) => (game.players[b].totalScore || 0) - (game.players[a].totalScore || 0))
+                      .map((pid, idx) => {
+                        const pts = game.players[pid].totalScore;
+                        return (
+                          <motion.div 
+                            key={pid} 
+                            layout
+                            className={`flex justify-between items-center p-4 rounded-2xl border transition-all duration-500 ${
+                              idx === 0 ? 'bg-amber-500/10 border-amber-500/30 shadow-lg shadow-amber-500/5' : 'bg-slate-800/30 border-slate-700/30'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                               <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${
+                                 idx === 0 ? 'bg-amber-500 text-slate-900' : 'bg-slate-700 text-slate-400'
+                               }`}>
+                                 {idx + 1}
+                               </div>
+                               <div>
+                                 <p className="font-bold text-white text-sm">{game.players[pid].name}</p>
+                                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{idx === 0 ? 'Current Leader' : 'Player'}</p>
+                               </div>
+                            </div>
+                            <div className={`text-xl font-black font-mono ${pts > 0 ? 'text-emerald-400' : pts < 0 ? 'text-rose-400' : 'text-slate-500'}`}>
+                              {pts > 0 ? '+' : ''}{pts}
+                            </div>
+                          </motion.div>
+                        );
+                      })
+                    }
+                 </div>
+               </CardContent>
+               <div className="p-4 bg-slate-800/20 border-t border-slate-800/50 rounded-b-3xl">
+                  <div className="flex items-center gap-2 text-xs text-slate-600 font-bold uppercase tracking-widest justify-center">
+                    <UserCircle2 className="w-3 h-3" />
+                    Live Table Status: Synchronized
+                  </div>
+               </div>
+             </Card>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

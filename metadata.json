@@ -1,0 +1,6 @@
+{
+  "name": "Marriage Counter",
+  "description": "A Nepali style Marriage card game points counter. Supports normal matches, dubli matches, and 15-point fault penalties.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

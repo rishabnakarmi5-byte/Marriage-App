@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile data",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "timestamp"
+        }
+      },
+      "required": ["email", "createdAt"]
+    },
+    "Game": {
+      "title": "Game",
+      "description": "A game session",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["waiting", "playing", "completed"]
+        },
+        "playerIds": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "players": {
+          "type": "object",
+          "description": "Map of userId to player details (name, score)"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "timestamp"
+        }
+      },
+      "required": ["ownerId", "status", "playerIds", "players", "createdAt", "updatedAt"]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "A match in a game",
+      "type": "object",
+      "properties": {
+        "matchNumber": {
+          "type": "number"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["normal", "dubli"]
+        },
+        "isFault": {
+          "type": "boolean"
+        },
+        "faultPlayerId": {
+          "type": "string"
+        },
+        "scores": {
+          "type": "object",
+          "description": "Map of userId to score details (maal, seen, winner, points)"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "timestamp"
+        }
+      },
+      "required": ["matchNumber", "type", "isFault", "scores", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/games/{gameId}": {
+      "schema": { "$ref": "#/entities/Game" },
+      "description": "Game sessions"
+    },
+    "/games/{gameId}/matches/{matchId}": {
+      "schema": { "$ref": "#/entities/Match" },
+      "description": "Matches within a game session"
+    }
+  }
+}

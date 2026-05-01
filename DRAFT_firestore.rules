@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+        allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'createdAt']) && data.keys().size() >= 2 && data.keys().size() <= 4 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.createdAt == request.time;
+    }
+    
+    function isValidUserUpdate(data, old) {
+      return data.keys().hasAll(['email', 'createdAt']) &&
+             data.email == old.email &&
+             data.createdAt == old.createdAt;
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidUser(incoming());
+      allow update: if isSignedIn() && request.auth.uid == userId && isValidId(userId) && isValidUserUpdate(incoming(), existing());
+    }
+
+    function isValidGameCreate(data) {
+      return data.keys().hasAll(['ownerId', 'status', 'playerIds', 'players', 'createdAt', 'updatedAt']) &&
+             data.ownerId == request.auth.uid &&
+             data.status == 'waiting' &&
+             data.playerIds is list && data.playerIds.size() >= 1 && data.playerIds.size() <= 5 &&
+             data.players is map &&
+             data.createdAt == request.time &&
+             data.updatedAt == request.time;
+    }
+
+    match /games/{gameId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(gameId) && isValidGameCreate(incoming());
+      
+      // Update logic: users can join while waiting, or update players inside the game.
+      // Anyone who is existing owner or new joining player can update
+      allow update: if isSignedIn() && isValidId(gameId) &&
+        incoming().updatedAt == request.time &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().playerIds is list && incoming().playerIds.size() <= 5;
+    }
+
+    match /games/{gameId}/matches/{matchId} {
+      allow read: if isSignedIn();
+      // Only members of the game can create/update matches
+      allow create: if isSignedIn() && isValidId(gameId) && isValidId(matchId) &&
+        request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.playerIds &&
+        incoming().keys().hasAll(['matchNumber', 'type', 'isFault', 'scores', 'createdAt', 'updatedAt']) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        incoming().scores is map;
+        
+      allow update: if isSignedIn() && isValidId(gameId) && isValidId(matchId) &&
+        request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.playerIds &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().scores is map;
+    }
+  }
+}

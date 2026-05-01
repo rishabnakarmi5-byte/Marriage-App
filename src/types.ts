@@ -1,0 +1,30 @@
+export type PlayerScore = {
+  maal: number;
+  seen: boolean;
+  winner: boolean;
+  points: number; // calculated points this round
+};
+
+export type MatchData = {
+  id?: string;
+  matchNumber: number;
+  type: 'normal' | 'dubli';
+  isFault: boolean;
+  faultPlayerId: string | null;
+  scores: Record<string, PlayerScore>;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type GameData = {
+  id?: string;
+  ownerId: string;
+  status: 'waiting' | 'playing' | 'completed';
+  playerIds: string[];
+  players: Record<string, { name: string; totalScore: number }>;
+  currentMatch: number;
+  matchCount?: number;
+  lastWinnerId?: string | null;
+  createdAt: number;
+  updatedAt: number;
+};
