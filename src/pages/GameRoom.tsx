@@ -14,8 +14,10 @@ import { Loader2, Trophy, AlertTriangle, Play, UserPlus, ArrowLeft, History, Cal
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
 import { playTap, playSuccess, playError, playToggle, playTick, playFanfare, playCardDeal, playNav } from '../lib/sounds';
+import { useLanguage } from '../lib/LanguageContext';
 
 export function GameRoom({ user }: { user: User }) {
+  const { t } = useLanguage();
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
   const [game, setGame] = useState<GameData | null>(null);
@@ -205,14 +207,14 @@ export function GameRoom({ user }: { user: User }) {
     });
 
     return scores;
-  }, [game, currentMaalInputs, seenStatus, winnerId, isDubli, faultPlayer]);
+  }, [game, currentMaalInputs, seenStatus, winnerId, isDubli, faultPlayers]);
 
   const previewScores = useMemo(() => calculatePoints(), [calculatePoints]);
 
   const submitMatch = async () => {
     playTap();
     if (!game || !gameId) return;
-    if (faultPlayer === 'none' && !winnerId) {
+    if (faultPlayers.length === 0 && !winnerId) {
       toast.error('Must select a winner or record a fault.');
       playError();
       return;
@@ -272,7 +274,7 @@ export function GameRoom({ user }: { user: User }) {
   };
 
   const deleteMatch = async (matchId: string) => {
-    if (!window.confirm('Delete this match? Scores will be reverted.')) return;
+    if (!window.confirm(t('deleteMatch'))) return;
     playTap();
     try {
       const matchRef = doc(db, 'games', gameId!, 'matches', matchId);
@@ -328,7 +330,7 @@ export function GameRoom({ user }: { user: User }) {
   if (loading) return (
     <div className="flex flex-col items-center justify-center h-64 space-y-4">
       <Loader2 className="h-10 w-10 animate-spin text-amber-500" />
-      <p className="text-slate-400 font-medium">Loading your game table...</p>
+      <p className="text-slate-400 font-medium">{t('waiting')}</p>
     </div>
   );
   
@@ -336,7 +338,7 @@ export function GameRoom({ user }: { user: User }) {
     <div className="text-center p-12 bg-slate-900/50 rounded-3xl border border-slate-800">
       <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
       <h2 className="text-2xl font-bold mb-2">Game Not Found</h2>
-      <Button onClick={() => navigate('/')} variant="outline" className="mt-4">Back to Dashboard</Button>
+      <Button onClick={() => navigate('/')} variant="outline" className="mt-4">{t('dashboard')}</Button>
     </div>
   );
 
@@ -353,17 +355,17 @@ export function GameRoom({ user }: { user: User }) {
               <History className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-2xl font-extrabold text-white">Match Center</h2>
-              <p className="text-xs font-mono text-slate-500">ROOM ID: {game.id?.substring(0, 8).toUpperCase()}</p>
+              <h2 className="text-2xl font-extrabold text-white">{t('matchCenter')}</h2>
+              <p className="text-xs font-mono text-slate-500">{t('roomId')}: {game.id?.substring(0, 8).toUpperCase()}</p>
             </div>
          </div>
          <div className="flex items-center gap-4">
             <div className="flex flex-col items-end px-4 py-2 bg-amber-500/10 rounded-2xl border border-amber-500/20">
-               <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Rate</span>
+               <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">{t('rate')}</span>
                <span className="text-lg font-black text-white">Rs. {rate}/pt</span>
             </div>
             <Button variant="outline" size="sm" onClick={() => { playNav(); navigate('/'); }} className="border-slate-700 bg-transparent text-slate-400 hover:text-white">
-              <ArrowLeft className="w-4 h-4 mr-2" /> Dashboard
+              <ArrowLeft className="w-4 h-4 mr-2" /> {t('dashboard')}
             </Button>
          </div>
       </div>
@@ -377,12 +379,12 @@ export function GameRoom({ user }: { user: User }) {
         >
           <div className="flex items-center gap-3">
              <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-             <p className="text-sm font-bold text-amber-500">
-               QUIT REQUESTED: {game.exitRequests.length} / {game.playerIds.length} players ready to end the session.
+             <p className="text-sm font-bold text-amber-500 uppercase tracking-tight">
+               {t('quitRequested')}: {game.exitRequests.length} / {game.playerIds.length} {t('players')}
              </p>
           </div>
           <div className="text-xs text-slate-500 italic">
-            Wait for everyone to click "Quit Session" to finalize scores.
+            {t('allReadyToQuit')}
           </div>
         </motion.div>
       )}
@@ -395,8 +397,8 @@ export function GameRoom({ user }: { user: User }) {
         >
           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cardboard.png')] opacity-10" />
           <Crown className="w-20 h-20 text-amber-500 mx-auto mb-6 drop-shadow-glow" fill="currentColor" />
-          <h2 className="text-5xl font-black text-white mb-4 uppercase tracking-tighter">Session Complete</h2>
-          <p className="text-slate-400 text-xl mb-10 max-w-md mx-auto">The table is closed. Final settlement values based on Rs. {rate}/pt are shown below.</p>
+          <h2 className="text-5xl font-black text-white mb-4 uppercase tracking-tighter">{t('sessionComplete')}</h2>
+          <p className="text-slate-400 text-xl mb-10 max-w-md mx-auto">{t('finalSettlement')} (Rs. {rate}/pt)</p>
           
           <div className="grid gap-4 max-w-xl mx-auto mb-10">
             {game.playerIds
@@ -418,7 +420,7 @@ export function GameRoom({ user }: { user: User }) {
           </div>
 
           <Button size="lg" onClick={() => navigate('/')} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-black px-12 h-16 rounded-2xl shadow-xl">
-            Return to Lobby
+            {t('returnToLobby')}
           </Button>
         </motion.div>
       )}
@@ -429,9 +431,9 @@ export function GameRoom({ user }: { user: User }) {
           <CardHeader>
             <CardTitle className="text-2xl flex items-center gap-3">
               <UserPlus className="text-amber-500" />
-              Players ({game.playerIds.length}/5)
+              {t('players')} ({game.playerIds.length}/5)
             </CardTitle>
-            <CardDescription className="text-slate-400">Share the Room ID to invite more friends</CardDescription>
+            <CardDescription className="text-slate-400">{t('configureRules')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
@@ -445,7 +447,7 @@ export function GameRoom({ user }: { user: User }) {
                    </div>
                    <div className="flex-1">
                      <p className="font-bold text-white">{game.players[pid]?.name}</p>
-                     {pid === game.ownerId && <span className="text-[10px] bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full font-bold uppercase">Host</span>}
+                     {pid === game.ownerId && <span className="text-[10px] bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full font-bold uppercase">{t('host')}</span>}
                    </div>
                    {pid === user.uid && <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />}
                 </div>
@@ -455,12 +457,12 @@ export function GameRoom({ user }: { user: User }) {
             <div className="flex flex-col gap-3">
               {!inGame && game.playerIds.length < 5 && (
                 <Button onClick={joinGame} size="lg" className="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-6 rounded-2xl">
-                  Join This Table
+                  {t('joinTable')}
                 </Button>
               )}
               {isOwner && (
                 <Button onClick={startGame} size="lg" disabled={game.playerIds.length < 2} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-6 rounded-2xl shadow-lg shadow-emerald-900/20">
-                  <Play className="w-5 h-5 mr-2" /> Start Game
+                  <Play className="w-5 h-5 mr-2" /> {t('startGame')}
                 </Button>
               )}
             </div>
@@ -478,9 +480,9 @@ export function GameRoom({ user }: { user: User }) {
                     <div>
                       <CardTitle className="text-2xl font-black text-white flex items-center gap-2">
                         <Calculator className="text-amber-500" />
-                        Record Match #{matches.length + 1}
+                        {t('saveMatch')} #{matches.length + 1}
                       </CardTitle>
-                      <CardDescription className="text-slate-500">Calculate points based on rules</CardDescription>
+                      <CardDescription className="text-slate-500">{t('configureRules')}</CardDescription>
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="flex items-center space-x-2 bg-slate-800/50 p-2 px-3 rounded-xl border border-slate-700/50">
@@ -488,10 +490,9 @@ export function GameRoom({ user }: { user: User }) {
                              id="dubli" 
                              checked={isDubli} 
                              onCheckedChange={(c) => { playToggle(); setIsDubli(!!c); }} 
-                             disabled={faultPlayer !== 'none'}
                              className="border-rose-500 data-[state=checked]:bg-rose-500"
                            />
-                           <Label htmlFor="dubli" className="font-bold text-rose-500 text-sm cursor-pointer select-none">DUBLI (x2)</Label>
+                           <Label htmlFor="dubli" className="font-bold text-rose-500 text-sm cursor-pointer select-none">{t('dubliGame')} (x2)</Label>
                         </div>
                     </div>
                  </div>
@@ -501,18 +502,18 @@ export function GameRoom({ user }: { user: User }) {
                  <div className="flex items-center justify-between p-4 bg-slate-800/30 rounded-2xl border border-slate-700/30">
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="w-5 h-5 text-rose-500" />
-                      <Label className="font-bold text-slate-300">Penalty / Fault Tracker</Label>
+                      <Label className="font-bold text-slate-300">{t('penaltyFaultTracker')}</Label>
                     </div>
                     <div className="flex items-center gap-2">
                       {faultPlayers.length > 0 ? (
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-bold text-rose-500 px-3 py-1 bg-rose-500/10 rounded-lg">
-                            {faultPlayers.length} FAULTER(S)
+                            {faultPlayers.length} {t('faulters')}
                           </span>
-                          <Button variant="ghost" size="xs" onClick={() => setFaultPlayers([])} className="text-[10px] text-slate-500 hover:text-white underline">Clear</Button>
+                          <Button variant="ghost" size="xs" onClick={() => setFaultPlayers([])} className="text-[10px] text-slate-500 hover:text-white underline">{t('clear')}</Button>
                         </div>
                       ) : (
-                        <span className="text-xs text-slate-600 italic">No faults recorded</span>
+                        <span className="text-xs text-slate-600 italic">{t('noFaults')}</span>
                       )}
                     </div>
                  </div>
@@ -523,7 +524,7 @@ export function GameRoom({ user }: { user: User }) {
                         key={pid}
                         layout
                         className={`player-row p-4 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-4 transition-all duration-300 ${
-                          winnerId === pid ? 'is-winner' : faultPlayer === pid ? 'bg-rose-500/10 border-rose-500/30' : 'bg-slate-800/40 border-slate-700/30'
+                          winnerId === pid ? 'is-winner' : faultPlayers.includes(pid) ? 'bg-rose-500/10 border-rose-500/30' : 'bg-slate-800/40 border-slate-700/30'
                         }`}
                       >
                          <div className="flex items-center gap-3 flex-1 w-full sm:w-auto">
@@ -538,7 +539,7 @@ export function GameRoom({ user }: { user: User }) {
                                {previewScores && (
                                  <div className="flex items-center gap-2">
                                    <p className={`text-xs font-mono font-bold ${previewScores[pid].points > 0 ? 'text-emerald-400' : previewScores[pid].points < 0 ? 'text-rose-400' : 'text-slate-500'}`}>
-                                     {previewScores[pid].points > 0 ? '+' : ''}{previewScores[pid].points} pts
+                                     {previewScores[pid].points > 0 ? '+' : ''}{previewScores[pid].points} {t('points')}
                                    </p>
                                    <p className="text-[10px] text-slate-500 font-mono">
                                      (Rs. {(previewScores[pid].points * rate).toFixed(0)})
@@ -550,7 +551,7 @@ export function GameRoom({ user }: { user: User }) {
 
                          <div className="flex items-center gap-4 w-full sm:w-auto justify-end">
                             <div className="flex flex-col items-center gap-1.5 px-3 border-r border-slate-700/50">
-                              <Label className="text-[10px] font-black uppercase text-rose-500 tracking-tighter">Fault</Label>
+                              <Label className="text-[10px] font-black uppercase text-rose-500 tracking-tighter">{t('fault')}</Label>
                               <Button 
                                 variant="ghost" 
                                 size="icon" 
@@ -568,7 +569,7 @@ export function GameRoom({ user }: { user: User }) {
                             {faultPlayers.length === 0 && (
                               <>
                                 <div className="flex flex-col items-center gap-1.5 px-3">
-                                  <Label className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Seen</Label>
+                                  <Label className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">{t('seen')}</Label>
                                   <Checkbox 
                                     checked={seenStatus[pid] || winnerId === pid} 
                                     onCheckedChange={(c) => { playToggle(); setSeenStatus(prev => ({ ...prev, [pid]: !!c })); }} 
@@ -577,7 +578,7 @@ export function GameRoom({ user }: { user: User }) {
                                   />
                                 </div>
                                 <div className="flex flex-col items-center gap-1.5 px-3 border-x border-slate-700/50">
-                                  <Label className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Winner</Label>
+                                  <Label className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">{t('winner')}</Label>
                                   <Checkbox 
                                     checked={winnerId === pid} 
                                     onCheckedChange={(c) => {
@@ -596,13 +597,13 @@ export function GameRoom({ user }: { user: User }) {
                             )}
                             
                             <div className="flex flex-col items-start gap-1 w-24">
-                              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Maal</Label>
+                              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">{t('maal')}</Label>
                               <Input 
                                 type="number" 
                                 min="0" 
                                 placeholder="0"
                                 className="h-10 bg-slate-800 border-slate-700 text-white rounded-xl text-center font-bold"
-                                disabled={faultPlayer !== 'none' && game.rules?.cancelMaalOnFault}
+                                disabled={faultPlayers.length > 0 && game.rules?.cancelMaalOnFault}
                                 value={currentMaalInputs[pid] || ''}
                                 onChange={e => { playTick(); setCurrentMaalInputs(prev => ({ ...prev, [pid]: e.target.value })); }}
                               />
@@ -615,9 +616,9 @@ export function GameRoom({ user }: { user: User }) {
                  <div className="pt-4">
                     <Button 
                       onClick={submitMatch} 
-                      disabled={submittingMatch || (faultPlayer === 'none' && !winnerId)} 
+                      disabled={submittingMatch || (faultPlayers.length === 0 && !winnerId)} 
                       className={`w-full py-8 text-xl font-black rounded-2xl shadow-2xl transition-all duration-300 ${
-                        (faultPlayer === 'none' && !winnerId) 
+                        (faultPlayers.length === 0 && !winnerId) 
                         ? 'bg-slate-800 text-slate-600 border border-slate-700 cursor-not-allowed' 
                         : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-900 animate-pulse-glow border-0'
                       }`}
@@ -625,7 +626,7 @@ export function GameRoom({ user }: { user: User }) {
                        {submittingMatch ? <Loader2 className="animate-spin w-8 h-8" /> : (
                          <div className="flex items-center gap-3">
                            <Zap fill="currentColor" className="w-6 h-6" />
-                           SAVE MATCH DATA
+                           {t('saveMatch')}
                          </div>
                        )}
                     </Button>
@@ -637,7 +638,7 @@ export function GameRoom({ user }: { user: User }) {
                <CardHeader className="border-b border-slate-800/50 bg-slate-800/10">
                  <CardTitle className="text-xl flex items-center gap-2">
                    <History className="text-slate-400" />
-                   Recent History
+                   {t('recentHistory')}
                  </CardTitle>
                </CardHeader>
                <CardContent className="p-0 overflow-x-auto">
@@ -645,7 +646,7 @@ export function GameRoom({ user }: { user: User }) {
                    <TableHeader className="bg-slate-800/30">
                      <TableRow className="border-slate-800 hover:bg-transparent">
                         <TableHead className="w-[80px] font-bold text-slate-400">#</TableHead>
-                        <TableHead className="w-[100px] font-bold text-slate-400">Type</TableHead>
+                        <TableHead className="w-[100px] font-bold text-slate-400">{t('type')}</TableHead>
                         {game.playerIds.map(pid => (
                           <TableHead key={pid} className="text-right font-bold text-slate-400">{game.players[pid].name}</TableHead>
                         ))}
@@ -659,7 +660,7 @@ export function GameRoom({ user }: { user: User }) {
                             <div className="opacity-20 mb-4 flex justify-center">
                                <History className="w-16 h-16" />
                             </div>
-                            <p className="text-slate-500 font-medium italic">No rounds played yet.</p>
+                            <p className="text-slate-500 font-medium italic">{t('noMatches')}</p>
                          </TableCell>
                        </TableRow>
                      ) : (
@@ -668,11 +669,11 @@ export function GameRoom({ user }: { user: User }) {
                           <TableCell className="font-mono font-bold text-slate-500">#{m.matchNumber}</TableCell>
                           <TableCell>
                              {m.isFault ? (
-                               <span className="text-[10px] bg-rose-500/20 text-rose-500 px-2 py-0.5 rounded-full font-black uppercase border border-rose-500/30">Fault</span>
+                               <span className="text-[10px] bg-rose-500/20 text-rose-500 px-2 py-0.5 rounded-full font-black uppercase border border-rose-500/30">{t('fault')}</span>
                              ) : m.type === 'dubli' ? (
-                               <span className="text-[10px] bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full font-black uppercase border border-amber-500/30">Dubli</span>
+                               <span className="text-[10px] bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full font-black uppercase border border-amber-500/30">{t('dubli')}</span>
                              ) : (
-                               <span className="text-[10px] bg-slate-700/50 text-slate-400 px-2 py-0.5 rounded-full font-black uppercase">Normal</span>
+                               <span className="text-[10px] bg-slate-700/50 text-slate-400 px-2 py-0.5 rounded-full font-black uppercase">{t('normal')}</span>
                              )}
                           </TableCell>
                           {game.playerIds.map(pid => {
@@ -716,9 +717,9 @@ export function GameRoom({ user }: { user: User }) {
                <CardHeader className="bg-gradient-to-r from-amber-500/10 to-transparent border-b border-slate-800/50">
                  <CardTitle className="text-xl flex items-center gap-3">
                    <Crown className="text-amber-500" fill="currentColor" />
-                   Standings
+                   {t('standings')}
                  </CardTitle>
-                 <CardDescription className="text-slate-500 italic">Total points & NPR value</CardDescription>
+                 <CardDescription className="text-slate-500 italic">{t('totalScore')} & NPR {t('rate')}</CardDescription>
                </CardHeader>
                <CardContent className="pt-6">
                  <div className="space-y-4">
@@ -758,7 +759,7 @@ export function GameRoom({ user }: { user: User }) {
                <div className="p-4 bg-slate-800/20 border-t border-slate-800/50 rounded-b-3xl space-y-4">
                   <div className="flex items-center gap-2 text-xs text-slate-600 font-bold uppercase tracking-widest justify-center">
                     <Banknote className="w-3 h-3" />
-                    Value based on Rs. {rate}/pt
+                    {t('valueBasedOn')} Rs. {rate}/pt
                   </div>
                   {game.status === 'playing' && (
                     <Button 
@@ -766,7 +767,7 @@ export function GameRoom({ user }: { user: User }) {
                       variant="outline" 
                       className="w-full border-rose-500/30 text-rose-500 hover:bg-rose-500/10 rounded-xl"
                     >
-                      {game.exitRequests?.includes(user.uid) ? 'Wait for others...' : 'Quit Session'}
+                      {game.exitRequests?.includes(user.uid) ? t('waitOthers') : t('quitSession')}
                     </Button>
                   )}
                </div>

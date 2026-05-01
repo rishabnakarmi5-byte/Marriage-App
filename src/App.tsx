@@ -11,6 +11,8 @@ import { Toaster } from '../components/ui/sonner';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { playTap, playFanfare, playNav } from './lib/sounds';
+import { LanguageProvider, useLanguage } from './lib/LanguageContext';
+import { LanguageSwitcher } from './lib/LanguageSwitcher';
 
 // Floating card suit particles for ambiance
 function FloatingSuits() {
@@ -70,7 +72,8 @@ function CardFan() {
   );
 }
 
-export default function App() {
+function MainLayout() {
+  const { t } = useLanguage();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -139,6 +142,9 @@ export default function App() {
     return (
       <div className="flex h-screen w-full flex-col items-center justify-center bg-felt relative overflow-hidden">
         <FloatingSuits />
+        <div className="absolute top-4 right-4 z-50">
+          <LanguageSwitcher />
+        </div>
         <Toaster richColors theme="dark" />
 
         <motion.div
@@ -164,7 +170,7 @@ export default function App() {
             transition={{ delay: 0.8 }}
             className="text-lg md:text-xl text-slate-400 font-medium max-w-md mx-auto mb-2"
           >
-            The Nepali Card Game Score Counter
+            {t('ne') === 'नेपाली' ? 'नेपाली तास खेलको स्कोर काउन्टर' : 'The Nepali Card Game Score Counter'}
           </motion.p>
 
           <motion.p
@@ -173,7 +179,7 @@ export default function App() {
             transition={{ delay: 1.0 }}
             className="text-sm text-slate-500 max-w-sm mx-auto mb-10"
           >
-            Create a room, invite friends, and let us handle the math ✨
+            {t('ne') === 'नेपाली' ? 'कोठा बनाउनुहोस्, साथीहरूलाई बोलाउनुहोस्, र हिसाब हामीलाई छोड्नुहोस् ✨' : 'Create a room, invite friends, and let us handle the math ✨'}
           </motion.p>
 
           <motion.div
@@ -188,7 +194,7 @@ export default function App() {
                 className="px-10 py-7 text-lg rounded-2xl shadow-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-900 font-bold border-0 btn-press"
               >
                 <span className="mr-2 text-xl">🎴</span>
-                Sign in with Google
+                Google बाट लगइन गर्नुहोस्
               </Button>
             </motion.div>
           </motion.div>
@@ -213,6 +219,7 @@ export default function App() {
             <h1 className="text-xl font-extrabold gradient-text">Marriage</h1>
           </motion.div>
           <div className="flex items-center gap-3">
+            <LanguageSwitcher />
             <div className="hidden sm:flex items-center gap-2 bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
               <div className="w-6 h-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-xs font-bold text-slate-900">
                 {(user.displayName || 'P').charAt(0).toUpperCase()}
@@ -226,7 +233,7 @@ export default function App() {
                 variant="outline"
                 size="sm"
                 onClick={() => { playTap(); logout(); }}
-                className="h-8 shrink-0 border-slate-700 text-slate-400 hover:text-white hover:border-amber-500/50 bg-transparent"
+                className="h-8 shrink-0 border-slate-700 text-[10px] uppercase font-bold text-slate-400 hover:text-white hover:border-amber-500/50 bg-transparent"
               >
                 Logout
               </Button>
@@ -245,13 +252,16 @@ export default function App() {
           </AnimatePresence>
         </main>
 
-        {/* Footer */}
-        <footer className="text-center py-4 text-xs text-slate-600 border-t border-slate-800/50 relative z-10">
-          Made with ♥ for Marriage lovers
-        </footer>
-
         <Toaster richColors theme="dark" />
       </div>
     </BrowserRouter>
+  );
+}
+
+export default function App() {
+  return (
+    <LanguageProvider>
+      <MainLayout />
+    </LanguageProvider>
   );
 }

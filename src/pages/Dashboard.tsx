@@ -13,8 +13,10 @@ import { GameData, GameRules } from '../types';
 import { Users, Loader2, Sparkles, Zap, Crown, Settings2, PlusCircle, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { playTap, playSuccess, playJoin } from '../lib/sounds';
+import { useLanguage } from '../lib/LanguageContext';
 
 export function Dashboard({ user }: { user: User }) {
+  const { t } = useLanguage();
   const [joinId, setJoinId] = useState('');
   const [loading, setLoading] = useState(false);
   const [ongoingGames, setOngoingGames] = useState<GameData[]>([]);
@@ -106,7 +108,7 @@ export function Dashboard({ user }: { user: User }) {
         matchNumber: 1,
         type: 'normal',
         isFault: false,
-        faultPlayerId: null,
+        faultPlayerIds: [],
         scores: {
           [user.uid]: { points: 25, maal: 12, seen: true, winner: true, details: { gamePoints: 13, maalPoints: 12 } },
           'bot-1': { points: -5, maal: 5, seen: true, winner: false, details: { gamePoints: -3, maalPoints: -2 } },
@@ -156,10 +158,10 @@ export function Dashboard({ user }: { user: User }) {
           🃏
         </motion.div>
         <h2 className="text-3xl md:text-4xl font-extrabold gradient-text mb-2">
-          Ready to Play?
+          {t('readyToPlay')}
         </h2>
         <p className="text-slate-400 text-lg mb-6">
-          Configure your rules and deal the cards!
+          {t('configureRules')}
         </p>
       </motion.div>
 
@@ -181,9 +183,9 @@ export function Dashboard({ user }: { user: User }) {
               >
                 <PlusCircle className="text-amber-400 w-7 h-7" />
               </motion.div>
-              <CardTitle className="text-2xl font-bold text-white">Create Table</CardTitle>
+              <CardTitle className="text-2xl font-bold text-white">{t('createGame')}</CardTitle>
               <CardDescription className="text-base text-slate-400">
-                Set your local rules and invite up to 5 players
+                {t('configureRules')}
               </CardDescription>
             </CardHeader>
             <CardContent className="mt-auto relative z-10">
@@ -192,7 +194,7 @@ export function Dashboard({ user }: { user: User }) {
                 className="w-full text-lg h-14 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-900 font-bold rounded-xl shadow-lg shadow-amber-500/20 border-0"
               >
                 <Settings2 className="w-5 h-5 mr-2" />
-                Set Rules & Create
+                {t('gameRules')}
               </Button>
             </CardContent>
           </Card>
@@ -209,9 +211,9 @@ export function Dashboard({ user }: { user: User }) {
               <div className="w-14 h-14 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-2xl flex items-center justify-center mb-4 border border-emerald-500/20">
                 <Users className="text-emerald-400 w-7 h-7" />
               </div>
-              <CardTitle className="text-2xl font-bold text-white">Join Table</CardTitle>
+              <CardTitle className="text-2xl font-bold text-white">{t('joinGame')}</CardTitle>
               <CardDescription className="text-base text-slate-400">
-                Enter a game code to join an existing table
+                {t('enterRoomId')}
               </CardDescription>
             </CardHeader>
             <form onSubmit={handleJoinGame} className="flex flex-col mt-auto">
@@ -233,7 +235,7 @@ export function Dashboard({ user }: { user: User }) {
                   disabled={!joinId.trim()}
                 >
                   <Users className="w-5 h-5 mr-2" />
-                  Join Table
+                  {t('joinGame')}
                 </Button>
               </CardFooter>
             </form>
@@ -245,13 +247,12 @@ export function Dashboard({ user }: { user: User }) {
       <div className="mt-12">
         <h2 className="text-2xl font-bold mb-6 flex items-center text-white">
           <Crown className="mr-3 text-amber-400 w-6 h-6" />
-          Live Tables
+          {t('standings')}
         </h2>
         {ongoingGames.length === 0 ? (
           <div className="p-10 text-center bg-slate-800/30 rounded-2xl border-2 border-dashed border-slate-700/50">
             <div className="text-4xl mb-3">🎴</div>
-            <p className="text-slate-500 font-medium text-lg">No active games right now</p>
-            <p className="text-slate-600 text-sm mt-1">Be the first to create a table!</p>
+            <p className="text-slate-500 font-medium text-lg">{t('noMatches')}</p>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -275,7 +276,7 @@ export function Dashboard({ user }: { user: User }) {
                     <div className={`text-xs font-bold px-3 py-1 rounded-full uppercase ${
                       game.status === 'waiting' ? 'badge-waiting' : 'badge-playing'
                     }`}>
-                      {game.status === 'waiting' ? '⏳ Waiting' : '🎮 Playing'}
+                      {game.status === 'waiting' ? `⏳ ${t('waiting')}` : `🎮 ${t('playing')}`}
                     </div>
                   </div>
                   <h3 className="font-bold text-lg mb-2 text-white">
@@ -297,7 +298,7 @@ export function Dashboard({ user }: { user: User }) {
         )}
       </div>
 
-      {/* Rules Modal (Manual Implementation to avoid Base UI issues) */}
+      {/* Rules Modal */}
       <AnimatePresence>
         {isCreateOpen && (
           <motion.div
@@ -316,9 +317,9 @@ export function Dashboard({ user }: { user: User }) {
                 <div>
                   <h3 className="text-2xl font-bold text-white flex items-center gap-2">
                     <Settings2 className="text-amber-500" />
-                    Game Rules
+                    {t('gameRules')}
                   </h3>
-                  <p className="text-sm text-slate-400">Configure your local point system</p>
+                  <p className="text-sm text-slate-400">{t('configureRules')}</p>
                 </div>
                 <button 
                   onClick={() => setIsCreateOpen(false)}
@@ -329,63 +330,57 @@ export function Dashboard({ user }: { user: User }) {
               </div>
 
               <div className="p-6 overflow-y-auto space-y-6">
-                {/* Rate Section */}
                 <div className="space-y-3 p-4 bg-slate-800/50 rounded-2xl border border-slate-700/50">
-                  <Label className="text-amber-400 font-bold text-sm uppercase tracking-wider">Currency & Rate</Label>
-                  <div className="flex flex-col gap-1.5">
-                    <p className="text-xs text-slate-400">NPR per 1 Point</p>
-                    <Input 
-                      type="number" 
-                      value={rules.rate} 
-                      onChange={(e) => setRules({...rules, rate: parseFloat(e.target.value) || 0})}
-                      className="bg-slate-900 border-slate-700 h-12 text-lg"
-                    />
-                  </div>
+                  <Label className="text-amber-400 font-bold text-sm uppercase tracking-wider">{t('nprPerPoint')}</Label>
+                  <Input 
+                    type="number" 
+                    value={rules.rate} 
+                    onChange={(e) => setRules({...rules, rate: parseFloat(e.target.value) || 0})}
+                    className="bg-slate-900 border-slate-700 h-12 text-lg"
+                  />
                 </div>
 
-                {/* Point Scenarios */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-4 p-4 bg-slate-800/30 rounded-2xl border border-slate-700/30">
-                    <h3 className="font-black text-rose-500 text-xs uppercase tracking-widest">Normal Game Points</h3>
+                    <h3 className="font-black text-rose-500 text-xs uppercase tracking-widest">{t('normalGame')}</h3>
                     <div className="space-y-3">
                       <div>
-                        <Label className="text-[10px] text-slate-500 uppercase font-bold">Seen Penalty</Label>
+                        <Label className="text-[10px] text-slate-500 uppercase font-bold">{t('seenPenalty')}</Label>
                         <Input type="number" value={rules.normalSeen} onChange={(e) => setRules({...rules, normalSeen: parseInt(e.target.value) || 0})} className="bg-slate-900 border-slate-700 h-10" />
                       </div>
                       <div>
-                        <Label className="text-[10px] text-slate-500 uppercase font-bold">Unseen Penalty</Label>
+                        <Label className="text-[10px] text-slate-500 uppercase font-bold">{t('unseenPenalty')}</Label>
                         <Input type="number" value={rules.normalUnseen} onChange={(e) => setRules({...rules, normalUnseen: parseInt(e.target.value) || 0})} className="bg-slate-900 border-slate-700 h-10" />
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-4 p-4 bg-slate-800/30 rounded-2xl border border-slate-700/30">
-                    <h3 className="font-black text-amber-500 text-xs uppercase tracking-widest">Dubli Game Points</h3>
+                    <h3 className="font-black text-amber-500 text-xs uppercase tracking-widest">{t('dubliGame')}</h3>
                     <div className="space-y-3">
                       <div>
-                        <Label className="text-[10px] text-slate-500 uppercase font-bold">Seen Penalty</Label>
+                        <Label className="text-[10px] text-slate-500 uppercase font-bold">{t('seenPenalty')}</Label>
                         <Input type="number" value={rules.dubliSeen} onChange={(e) => setRules({...rules, dubliSeen: parseInt(e.target.value) || 0})} className="bg-slate-900 border-slate-700 h-10" />
                       </div>
                       <div>
-                        <Label className="text-[10px] text-slate-500 uppercase font-bold">Unseen Penalty</Label>
+                        <Label className="text-[10px] text-slate-500 uppercase font-bold">{t('unseenPenalty')}</Label>
                         <Input type="number" value={rules.dubliUnseen} onChange={(e) => setRules({...rules, dubliUnseen: parseInt(e.target.value) || 0})} className="bg-slate-900 border-slate-700 h-10" />
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Fault Section */}
                 <div className="space-y-4 p-4 bg-rose-500/5 rounded-2xl border border-rose-500/20">
                   <h3 className="font-black text-rose-400 text-xs uppercase tracking-widest flex items-center gap-2">
-                    <Zap className="w-3 h-3" /> Fault / Penalty Rules
+                    <Zap className="w-3 h-3" /> {t('faultPenalty')}
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-[10px] text-slate-500 uppercase font-bold">Normal Fault Pts</Label>
+                      <Label className="text-[10px] text-slate-500 uppercase font-bold">{t('normalGame')} {t('fault')}</Label>
                       <Input type="number" value={rules.faultNormal} onChange={(e) => setRules({...rules, faultNormal: parseInt(e.target.value) || 0})} className="bg-slate-900 border-slate-700 h-10" />
                     </div>
                     <div>
-                      <Label className="text-[10px] text-slate-500 uppercase font-bold">Dubli Fault Pts</Label>
+                      <Label className="text-[10px] text-slate-500 uppercase font-bold">{t('dubliGame')} {t('fault')}</Label>
                       <Input type="number" value={rules.faultDubli} onChange={(e) => setRules({...rules, faultDubli: parseInt(e.target.value) || 0})} className="bg-slate-900 border-slate-700 h-10" />
                     </div>
                   </div>
@@ -396,7 +391,7 @@ export function Dashboard({ user }: { user: User }) {
                       onCheckedChange={(c) => setRules({...rules, cancelMaalOnFault: !!c})} 
                       className="border-rose-500 data-[state=checked]:bg-rose-500"
                     />
-                    <Label htmlFor="cancelMaal" className="text-xs text-slate-300 cursor-pointer">Cancel all maals when fault occurs</Label>
+                    <Label htmlFor="cancelMaal" className="text-xs text-slate-300 cursor-pointer">{t('cancelMaalOnFault')}</Label>
                   </div>
                 </div>
               </div>
@@ -411,7 +406,7 @@ export function Dashboard({ user }: { user: User }) {
                     className="border-amber-500/30 text-amber-500 hover:bg-amber-500/10 px-6 h-14 rounded-2xl"
                   >
                     <Sparkles className="w-4 h-4 mr-2" />
-                    Try Demo Mode
+                    {t('tryDemo')}
                   </Button>
                   <Button 
                     onClick={handleCreateGame} 
@@ -419,7 +414,7 @@ export function Dashboard({ user }: { user: User }) {
                     className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-10 h-14 rounded-2xl border-0 shadow-lg shadow-amber-500/20"
                   >
                     {loading ? <Loader2 className="animate-spin w-5 h-5 mr-2" /> : <Zap className="w-4 h-4 mr-2" fill="currentColor" />}
-                    Confirm & Create Table
+                    {t('confirmAndCreate')}
                   </Button>
                 </div>
               </div>
