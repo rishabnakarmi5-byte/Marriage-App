@@ -281,6 +281,35 @@ export function GameRoom({ user }: { user: User }) {
     }
   };
 
+  const handleQuitSession = async () => {
+    if (!game || !gameId) return;
+    playTap();
+    const currentExits = game.exitRequests || [];
+    if (currentExits.includes(user.uid)) {
+      toast.info('You have already requested to quit. Waiting for others.');
+      return;
+    }
+
+    const newExits = [...currentExits, user.uid];
+    const allReady = newExits.length >= game.playerIds.length;
+
+    try {
+      await updateDoc(doc(db, 'games', gameId), {
+        exitRequests: newExits,
+        status: allReady ? 'completed' : 'playing',
+        updatedAt: serverTimestamp()
+      });
+      if (allReady) {
+        playFanfare();
+        toast.success('Session closed by consensus!');
+      } else {
+        toast.info(`Quit request sent (${newExits.length}/${game.playerIds.length})`);
+      }
+    } catch (e) {
+      toast.error('Failed to request quit');
+    }
+  };
+
   if (loading) return (
     <div className="flex flex-col items-center justify-center h-64 space-y-4">
       <Loader2 className="h-10 w-10 animate-spin text-amber-500" />
@@ -323,6 +352,61 @@ export function GameRoom({ user }: { user: User }) {
             </Button>
          </div>
       </div>
+
+      {/* Exit Consensus Alert */}
+      {game.status === 'playing' && game.exitRequests && game.exitRequests.length > 0 && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl flex items-center justify-between"
+        >
+          <div className="flex items-center gap-3">
+             <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+             <p className="text-sm font-bold text-amber-500">
+               QUIT REQUESTED: {game.exitRequests.length} / {game.playerIds.length} players ready to end the session.
+             </p>
+          </div>
+          <div className="text-xs text-slate-500 italic">
+            Wait for everyone to click "Quit Session" to finalize scores.
+          </div>
+        </motion.div>
+      )}
+
+      {game.status === 'completed' && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center p-12 bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl border-2 border-amber-500/50 shadow-2xl relative overflow-hidden"
+        >
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cardboard.png')] opacity-10" />
+          <Crown className="w-20 h-20 text-amber-500 mx-auto mb-6 drop-shadow-glow" fill="currentColor" />
+          <h2 className="text-5xl font-black text-white mb-4 uppercase tracking-tighter">Session Complete</h2>
+          <p className="text-slate-400 text-xl mb-10 max-w-md mx-auto">The table is closed. Final settlement values based on Rs. {rate}/pt are shown below.</p>
+          
+          <div className="grid gap-4 max-w-xl mx-auto mb-10">
+            {game.playerIds
+              .sort((a, b) => (game.players[b].totalScore || 0) - (game.players[a].totalScore || 0))
+              .map((pid, idx) => (
+                <div key={pid} className="flex justify-between items-center p-6 bg-slate-800/50 rounded-2xl border border-slate-700/50">
+                  <div className="flex items-center gap-4">
+                    <span className="text-2xl font-black text-slate-600">#{idx + 1}</span>
+                    <span className="text-xl font-bold text-white">{game.players[pid].name}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-2xl font-black ${game.players[pid].totalScore > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {game.players[pid].totalScore > 0 ? '+' : ''}{game.players[pid].totalScore}
+                    </p>
+                    <p className="text-xs font-bold text-slate-500 uppercase">Rs. {(game.players[pid].totalScore * rate).toFixed(0)}</p>
+                  </div>
+                </div>
+              ))}
+          </div>
+
+          <Button size="lg" onClick={() => navigate('/')} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-black px-12 h-16 rounded-2xl shadow-xl">
+            Return to Lobby
+          </Button>
+        </motion.div>
+      )}
 
       {game.status === 'waiting' && (
         <Card className="card-glow bg-slate-900/60 border-slate-800 overflow-hidden relative">
@@ -644,11 +728,20 @@ export function GameRoom({ user }: { user: User }) {
                     }
                  </div>
                </CardContent>
-               <div className="p-4 bg-slate-800/20 border-t border-slate-800/50 rounded-b-3xl">
+               <div className="p-4 bg-slate-800/20 border-t border-slate-800/50 rounded-b-3xl space-y-4">
                   <div className="flex items-center gap-2 text-xs text-slate-600 font-bold uppercase tracking-widest justify-center">
                     <Banknote className="w-3 h-3" />
                     Value based on Rs. {rate}/pt
                   </div>
+                  {game.status === 'playing' && (
+                    <Button 
+                      onClick={handleQuitSession}
+                      variant="outline" 
+                      className="w-full border-rose-500/30 text-rose-500 hover:bg-rose-500/10 rounded-xl"
+                    >
+                      {game.exitRequests?.includes(user.uid) ? 'Wait for others...' : 'Quit Session'}
+                    </Button>
+                  )}
                </div>
              </Card>
           </div>

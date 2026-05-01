@@ -40,6 +40,7 @@ export type GameData = {
   currentMatch: number;
   rules: GameRules;
   isDemo?: boolean;
+  exitRequests?: string[]; // IDs of players who want to quit
   matchCount?: number;
   lastWinnerId?: string | null;
   createdAt: number;
