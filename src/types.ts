@@ -14,7 +14,7 @@ export type MatchData = {
   matchNumber: number;
   type: 'normal' | 'dubli';
   isFault: boolean;
-  faultPlayerId: string | null;
+  faultPlayerIds: string[];
   scores: Record<string, PlayerScore>;
   createdAt: number;
   updatedAt: number;

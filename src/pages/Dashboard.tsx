@@ -161,17 +161,6 @@ export function Dashboard({ user }: { user: User }) {
         <p className="text-slate-400 text-lg mb-6">
           Configure your rules and deal the cards!
         </p>
-        <div className="flex flex-wrap justify-center gap-3">
-          <Button 
-            variant="outline" 
-            onClick={handleCreateDemo} 
-            disabled={loading}
-            className="border-amber-500/30 text-amber-500 hover:bg-amber-500/10 rounded-full px-6"
-          >
-            <Sparkles className="w-4 h-4 mr-2" />
-            Try Demo Mode
-          </Button>
-        </div>
       </motion.div>
 
       {/* Action cards */}
@@ -414,14 +403,25 @@ export function Dashboard({ user }: { user: User }) {
 
               <div className="p-6 bg-slate-800/50 border-t border-slate-800 flex flex-col sm:flex-row gap-4 items-center justify-between">
                 <p className="text-[10px] text-slate-500 italic max-w-[200px]">Rules will be saved for this session.</p>
-                <Button 
-                  onClick={handleCreateGame} 
-                  disabled={loading}
-                  className="w-full sm:w-auto bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-10 h-14 rounded-2xl border-0 shadow-lg shadow-amber-500/20"
-                >
-                  {loading ? <Loader2 className="animate-spin w-5 h-5 mr-2" /> : <Zap className="w-4 h-4 mr-2" fill="currentColor" />}
-                  Confirm & Create Table
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                  <Button 
+                    variant="outline"
+                    onClick={handleCreateDemo} 
+                    disabled={loading}
+                    className="border-amber-500/30 text-amber-500 hover:bg-amber-500/10 px-6 h-14 rounded-2xl"
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Try Demo Mode
+                  </Button>
+                  <Button 
+                    onClick={handleCreateGame} 
+                    disabled={loading}
+                    className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-10 h-14 rounded-2xl border-0 shadow-lg shadow-amber-500/20"
+                  >
+                    {loading ? <Loader2 className="animate-spin w-5 h-5 mr-2" /> : <Zap className="w-4 h-4 mr-2" fill="currentColor" />}
+                    Confirm & Create Table
+                  </Button>
+                </div>
               </div>
             </motion.div>
           </motion.div>

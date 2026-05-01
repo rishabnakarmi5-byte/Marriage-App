@@ -27,7 +27,7 @@ export function GameRoom({ user }: { user: User }) {
   const [seenStatus, setSeenStatus] = useState<Record<string, boolean>>({});
   const [winnerId, setWinnerId] = useState<string>('');
   const [isDubli, setIsDubli] = useState(false);
-  const [faultPlayer, setFaultPlayer] = useState<string>('none');
+  const [faultPlayers, setFaultPlayers] = useState<string[]>([]);
   const [submittingMatch, setSubmittingMatch] = useState(false);
 
   useEffect(() => {
@@ -65,6 +65,14 @@ export function GameRoom({ user }: { user: User }) {
       setSeenStatus(actSeen);
     }
   }, [game?.playerIds]);
+
+  const toggleFault = (pid: string) => {
+    playToggle();
+    setFaultPlayers(prev => 
+      prev.includes(pid) ? prev.filter(id => id !== pid) : [...prev, pid]
+    );
+    if (!faultPlayers.includes(pid)) setWinnerId(''); 
+  };
 
   const joinGame = async () => {
     playTap();
@@ -121,15 +129,22 @@ export function GameRoom({ user }: { user: User }) {
       if (isNaN(parsedMaal[pid])) parsedMaal[pid] = 0;
     });
 
-    // Case: Fault
-    if (faultPlayer !== 'none' && pids.includes(faultPlayer)) {
+    // Case: Multiple Faults
+    if (faultPlayers.length > 0) {
       const faultPenalty = isDubli ? (rules.faultDubli || rules.faultNormal * 2) : rules.faultNormal;
+      const nonFaulters = pids.filter(pid => !faultPlayers.includes(pid));
+      
       pids.forEach(pid => {
+        const isFaulter = faultPlayers.includes(pid);
         scores[pid] = {
           maal: rules.cancelMaalOnFault ? 0 : parsedMaal[pid],
           seen: true,
           winner: false,
-          points: pid === faultPlayer ? -faultPenalty * (pids.length - 1) : faultPenalty
+          points: isFaulter ? (-faultPenalty * nonFaulters.length) : (faultPenalty * faultPlayers.length),
+          details: {
+            gamePoints: isFaulter ? (-faultPenalty * nonFaulters.length) : (faultPenalty * faultPlayers.length),
+            maalPoints: 0
+          }
         };
       });
       return scores;
@@ -215,8 +230,8 @@ export function GameRoom({ user }: { user: User }) {
       const matchDoc = {
         matchNumber: matches.length + 1,
         type: isDubli ? 'dubli' : 'normal',
-        isFault: faultPlayer !== 'none',
-        faultPlayerId: faultPlayer === 'none' ? null : faultPlayer,
+        isFault: faultPlayers.length > 0,
+        faultPlayerIds: faultPlayers,
         scores: calculatedScores,
         createdAt: Date.now(),
         updatedAt: Date.now()
@@ -240,7 +255,7 @@ export function GameRoom({ user }: { user: User }) {
       setCurrentMaalInputs({});
       setWinnerId('');
       setIsDubli(false);
-      setFaultPlayer('none');
+      setFaultPlayers([]);
       const resetSeen: Record<string, boolean> = {};
       game.playerIds.forEach(pid => resetSeen[pid] = true);
       setSeenStatus(resetSeen);
@@ -483,27 +498,23 @@ export function GameRoom({ user }: { user: User }) {
                </CardHeader>
                
                <CardContent className="pt-6 space-y-6">
-                 {/* Fault Selector - Simplified to standard select to avoid Base UI issues */}
                  <div className="flex items-center justify-between p-4 bg-slate-800/30 rounded-2xl border border-slate-700/30">
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="w-5 h-5 text-rose-500" />
-                      <Label className="font-bold text-slate-300">Penalty / Fault?</Label>
+                      <Label className="font-bold text-slate-300">Penalty / Fault Tracker</Label>
                     </div>
-                    <select 
-                      value={faultPlayer} 
-                      onChange={(e) => { 
-                        const v = e.target.value;
-                        playToggle(); 
-                        setFaultPlayer(v); 
-                        if(v!=='none') { setWinnerId(''); } 
-                      }}
-                      className="w-[180px] bg-slate-800 border-slate-700 text-white rounded-xl h-10 px-3 outline-none focus:ring-2 focus:ring-amber-500/50"
-                    >
-                      <option value="none">Regular Round</option>
-                      {game.playerIds.map(pid => (
-                        <option key={pid} value={pid}>{game.players[pid].name}</option>
-                      ))}
-                    </select>
+                    <div className="flex items-center gap-2">
+                      {faultPlayers.length > 0 ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-rose-500 px-3 py-1 bg-rose-500/10 rounded-lg">
+                            {faultPlayers.length} FAULTER(S)
+                          </span>
+                          <Button variant="ghost" size="xs" onClick={() => setFaultPlayers([])} className="text-[10px] text-slate-500 hover:text-white underline">Clear</Button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-600 italic">No faults recorded</span>
+                      )}
+                    </div>
                  </div>
 
                  <div className="space-y-3">
@@ -538,7 +549,23 @@ export function GameRoom({ user }: { user: User }) {
                          </div>
 
                          <div className="flex items-center gap-4 w-full sm:w-auto justify-end">
-                            {faultPlayer === 'none' && (
+                            <div className="flex flex-col items-center gap-1.5 px-3 border-r border-slate-700/50">
+                              <Label className="text-[10px] font-black uppercase text-rose-500 tracking-tighter">Fault</Label>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => toggleFault(pid)}
+                                className={`w-8 h-8 rounded-lg transition-all ${
+                                  faultPlayers.includes(pid) 
+                                  ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' 
+                                  : 'bg-slate-800 text-slate-600 hover:text-rose-400'
+                                }`}
+                              >
+                                <AlertTriangle className="w-4 h-4" />
+                              </Button>
+                            </div>
+
+                            {faultPlayers.length === 0 && (
                               <>
                                 <div className="flex flex-col items-center gap-1.5 px-3">
                                   <Label className="text-[10px] font-black uppercase text-slate-500 tracking-tighter">Seen</Label>
