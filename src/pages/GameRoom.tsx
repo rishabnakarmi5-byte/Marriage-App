@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { User } from 'firebase/auth';
-import { doc, onSnapshot, updateDoc, arrayUnion, serverTimestamp, collection, query, orderBy, addDoc, deleteDoc, getDocs } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, arrayUnion, serverTimestamp, collection, query, orderBy, addDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { GameData, MatchData, PlayerScore } from '../types';
 import { Button } from '../../components/ui/button';
@@ -10,10 +10,9 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
-import { Loader2, Trophy, AlertTriangle, Play, UserPlus, ArrowLeft, History, Calculator, UserCircle2, Crown, Zap, Trash2, Banknote } from 'lucide-react';
+import { Loader2, Trophy, AlertTriangle, Play, UserPlus, ArrowLeft, History, Calculator, Crown, Zap, Trash2, Banknote } from 'lucide-react';
 import { toast } from 'sonner';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { playTap, playSuccess, playError, playToggle, playTick, playFanfare, playCardDeal, playNav } from '../lib/sounds';
 
 export function GameRoom({ user }: { user: User }) {
@@ -140,7 +139,7 @@ export function GameRoom({ user }: { user: User }) {
 
     // Standard Math using Rules
     const seenPenalty = isDubli ? rules.dubliSeen : rules.normalSeen;
-    const unseenPenalty = isDubli ? rules.dubliUnseen : rules.normalUnseen;
+    const unseenPenalty = isDubli ? rules.unseenPenalty || rules.normalUnseen : rules.normalUnseen;
 
     pids.forEach(pid => {
       scores[pid] = {
@@ -326,11 +325,8 @@ export function GameRoom({ user }: { user: User }) {
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
               {game.playerIds.map((pid, idx) => (
-                <motion.div 
+                <div 
                   key={pid}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.1 }}
                   className="flex items-center gap-3 bg-slate-800/50 p-4 rounded-2xl border border-slate-700/30"
                 >
                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center font-bold text-slate-900">
@@ -341,7 +337,7 @@ export function GameRoom({ user }: { user: User }) {
                      {pid === game.ownerId && <span className="text-[10px] bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full font-bold uppercase">Host</span>}
                    </div>
                    {pid === user.uid && <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />}
-                </motion.div>
+                </div>
               ))}
             </div>
             
@@ -363,7 +359,6 @@ export function GameRoom({ user }: { user: User }) {
 
       {game.status === 'playing' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Main Scoring Area */}
           <div className="lg:col-span-8 space-y-8">
             <Card className="card-glow bg-slate-900/60 border-slate-800 shadow-2xl relative overflow-hidden">
                <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-rose-500/10 to-transparent" />
@@ -392,26 +387,29 @@ export function GameRoom({ user }: { user: User }) {
                </CardHeader>
                
                <CardContent className="pt-6 space-y-6">
-                 {/* Fault Selector */}
+                 {/* Fault Selector - Simplified to standard select to avoid Base UI issues */}
                  <div className="flex items-center justify-between p-4 bg-slate-800/30 rounded-2xl border border-slate-700/30">
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="w-5 h-5 text-rose-500" />
                       <Label className="font-bold text-slate-300">Penalty / Fault?</Label>
                     </div>
-                    <Select value={faultPlayer} onValueChange={(v) => { playToggle(); setFaultPlayer(v); if(v!=='none') { setWinnerId(''); } }}>
-                      <SelectTrigger className="w-[180px] bg-slate-800 border-slate-700 text-white rounded-xl">
-                        <SelectValue placeholder="No Fault" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-slate-800 border-slate-700 text-white">
-                        <SelectItem value="none">Regular Round</SelectItem>
-                        {game.playerIds.map(pid => (
-                          <SelectItem key={pid} value={pid}>{game.players[pid].name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <select 
+                      value={faultPlayer} 
+                      onChange={(e) => { 
+                        const v = e.target.value;
+                        playToggle(); 
+                        setFaultPlayer(v); 
+                        if(v!=='none') { setWinnerId(''); } 
+                      }}
+                      className="w-[180px] bg-slate-800 border-slate-700 text-white rounded-xl h-10 px-3 outline-none focus:ring-2 focus:ring-amber-500/50"
+                    >
+                      <option value="none">Regular Round</option>
+                      {game.playerIds.map(pid => (
+                        <option key={pid} value={pid}>{game.players[pid].name}</option>
+                      ))}
+                    </select>
                  </div>
 
-                 {/* Player Inputs */}
                  <div className="space-y-3">
                     {game.playerIds.map(pid => (
                       <motion.div 
@@ -512,7 +510,6 @@ export function GameRoom({ user }: { user: User }) {
                </CardContent>
             </Card>
 
-            {/* Match History */}
             <Card className="card-glow bg-slate-900/60 border-slate-800 overflow-hidden shadow-xl">
                <CardHeader className="border-b border-slate-800/50 bg-slate-800/10">
                  <CardTitle className="text-xl flex items-center gap-2">
@@ -582,7 +579,6 @@ export function GameRoom({ user }: { user: User }) {
             </Card>
           </div>
 
-          {/* Sidebar / Leaderboard */}
           <div className="lg:col-span-4 space-y-6">
              <Card className="card-glow bg-slate-900/60 border-slate-800 sticky top-24 shadow-2xl">
                <CardHeader className="bg-gradient-to-r from-amber-500/10 to-transparent border-b border-slate-800/50">
@@ -599,9 +595,8 @@ export function GameRoom({ user }: { user: User }) {
                       .map((pid, idx) => {
                         const pts = game.players[pid].totalScore;
                         return (
-                          <motion.div 
+                          <div 
                             key={pid} 
-                            layout
                             className={`flex justify-between items-center p-4 rounded-2xl border transition-all duration-500 ${
                               idx === 0 ? 'bg-amber-500/10 border-amber-500/30 shadow-lg shadow-amber-500/5' : 'bg-slate-800/30 border-slate-700/30'
                             }`}
@@ -622,7 +617,7 @@ export function GameRoom({ user }: { user: User }) {
                             <div className={`text-xl font-black font-mono ${pts > 0 ? 'text-emerald-400' : pts < 0 ? 'text-rose-400' : 'text-slate-500'}`}>
                               {pts > 0 ? '+' : ''}{pts}
                             </div>
-                          </motion.div>
+                          </div>
                         );
                       })
                     }
