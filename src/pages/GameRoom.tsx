@@ -10,7 +10,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Checkbox } from '../../components/ui/checkbox';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
-import { Loader2, Trophy, AlertTriangle, Play, UserPlus, ArrowLeft, History, Calculator, UserCircle2, Crown, Zap, Trash2 } from 'lucide-react';
+import { Loader2, Trophy, AlertTriangle, Play, UserPlus, ArrowLeft, History, Calculator, UserCircle2, Crown, Zap, Trash2, Banknote } from 'lucide-react';
 import { toast } from 'sonner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { motion, AnimatePresence } from 'motion/react';
@@ -71,8 +71,8 @@ export function GameRoom({ user }: { user: User }) {
     playTap();
     if (!gameId || !game) return;
     if (game.playerIds.includes(user.uid)) return;
-    if (game.playerIds.length >= 6) {
-      toast.error('Game is full (max 6 players)');
+    if (game.playerIds.length >= 5) {
+      toast.error('Game is full (max 5 players)');
       return;
     }
     try {
@@ -106,6 +106,15 @@ export function GameRoom({ user }: { user: User }) {
     if (!game) return null;
     const scores: Record<string, PlayerScore> = {};
     const pids = game.playerIds;
+    const rules = game.rules || {
+      normalSeen: 3,
+      normalUnseen: 10,
+      dubliSeen: 6,
+      dubliUnseen: 20,
+      faultNormal: 15,
+      faultDubli: 30,
+      cancelMaalOnFault: true
+    };
     
     const parsedMaal: Record<string, number> = {};
     pids.forEach(pid => {
@@ -115,12 +124,13 @@ export function GameRoom({ user }: { user: User }) {
 
     // Case: Fault
     if (faultPlayer !== 'none' && pids.includes(faultPlayer)) {
+      const faultPenalty = isDubli ? (rules.faultDubli || rules.faultNormal * 2) : rules.faultNormal;
       pids.forEach(pid => {
         scores[pid] = {
-          maal: 0,
+          maal: rules.cancelMaalOnFault ? 0 : parsedMaal[pid],
           seen: true,
           winner: false,
-          points: pid === faultPlayer ? -15 * (pids.length - 1) : 15
+          points: pid === faultPlayer ? -faultPenalty * (pids.length - 1) : faultPenalty
         };
       });
       return scores;
@@ -128,10 +138,9 @@ export function GameRoom({ user }: { user: User }) {
 
     if (!winnerId) return null;
 
-    // Standard Math
-    const gamePointMultiplier = isDubli ? 2 : 1;
-    const seenPenalty = 3 * gamePointMultiplier;
-    const unseenPenalty = 10 * gamePointMultiplier;
+    // Standard Math using Rules
+    const seenPenalty = isDubli ? rules.dubliSeen : rules.normalSeen;
+    const unseenPenalty = isDubli ? rules.dubliUnseen : rules.normalUnseen;
 
     pids.forEach(pid => {
       scores[pid] = {
@@ -241,7 +250,6 @@ export function GameRoom({ user }: { user: User }) {
     playTap();
     try {
       const matchRef = doc(db, 'games', gameId!, 'matches', matchId);
-      const matchSnap = await getDocs(query(collection(db, 'games', gameId!, 'matches'), orderBy('createdAt', 'desc')));
       const matchData = matches.find(m => m.id === matchId);
       
       if (matchData && game) {
@@ -279,6 +287,7 @@ export function GameRoom({ user }: { user: User }) {
 
   const inGame = game.playerIds.includes(user.uid);
   const isOwner = game.ownerId === user.uid;
+  const rate = game.rules?.rate || 1;
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-20">
@@ -293,15 +302,14 @@ export function GameRoom({ user }: { user: User }) {
               <p className="text-xs font-mono text-slate-500">ROOM ID: {game.id?.substring(0, 8).toUpperCase()}</p>
             </div>
          </div>
-         <div className="flex items-center gap-3">
+         <div className="flex items-center gap-4">
+            <div className="flex flex-col items-end px-4 py-2 bg-amber-500/10 rounded-2xl border border-amber-500/20">
+               <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Rate</span>
+               <span className="text-lg font-black text-white">Rs. {rate}/pt</span>
+            </div>
             <Button variant="outline" size="sm" onClick={() => { playNav(); navigate('/'); }} className="border-slate-700 bg-transparent text-slate-400 hover:text-white">
               <ArrowLeft className="w-4 h-4 mr-2" /> Dashboard
             </Button>
-            <div className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${
-              game.status === 'waiting' ? 'badge-waiting' : 'badge-playing'
-            }`}>
-              {game.status === 'waiting' ? '⌛ Waiting' : '🎲 In Progress'}
-            </div>
          </div>
       </div>
 
@@ -311,7 +319,7 @@ export function GameRoom({ user }: { user: User }) {
           <CardHeader>
             <CardTitle className="text-2xl flex items-center gap-3">
               <UserPlus className="text-amber-500" />
-              Players ({game.playerIds.length}/6)
+              Players ({game.playerIds.length}/5)
             </CardTitle>
             <CardDescription className="text-slate-400">Share the Room ID to invite more friends</CardDescription>
           </CardHeader>
@@ -338,7 +346,7 @@ export function GameRoom({ user }: { user: User }) {
             </div>
             
             <div className="flex flex-col gap-3">
-              {!inGame && game.playerIds.length < 6 && (
+              {!inGame && game.playerIds.length < 5 && (
                 <Button onClick={joinGame} size="lg" className="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-6 rounded-2xl">
                   Join This Table
                 </Button>
@@ -366,7 +374,7 @@ export function GameRoom({ user }: { user: User }) {
                         <Calculator className="text-amber-500" />
                         Record Match #{matches.length + 1}
                       </CardTitle>
-                      <CardDescription className="text-slate-500">Calculate points based on maal and seen status</CardDescription>
+                      <CardDescription className="text-slate-500">Calculate points based on rules</CardDescription>
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="flex items-center space-x-2 bg-slate-800/50 p-2 px-3 rounded-xl border border-slate-700/50">
@@ -390,7 +398,7 @@ export function GameRoom({ user }: { user: User }) {
                       <AlertTriangle className="w-5 h-5 text-rose-500" />
                       <Label className="font-bold text-slate-300">Penalty / Fault?</Label>
                     </div>
-                    <Select value={faultPlayer} onValueChange={(v) => { playToggle(); setFaultPlayer(v); if(v!=='none') { setWinnerId(''); setIsDubli(false); } }}>
+                    <Select value={faultPlayer} onValueChange={(v) => { playToggle(); setFaultPlayer(v); if(v!=='none') { setWinnerId(''); } }}>
                       <SelectTrigger className="w-[180px] bg-slate-800 border-slate-700 text-white rounded-xl">
                         <SelectValue placeholder="No Fault" />
                       </SelectTrigger>
@@ -423,9 +431,14 @@ export function GameRoom({ user }: { user: User }) {
                             <div>
                                <p className="font-bold text-white">{game.players[pid].name}</p>
                                {previewScores && (
-                                 <p className={`text-xs font-mono font-bold ${previewScores[pid].points > 0 ? 'text-emerald-400' : previewScores[pid].points < 0 ? 'text-rose-400' : 'text-slate-500'}`}>
-                                   {previewScores[pid].points > 0 ? '+' : ''}{previewScores[pid].points} pts
-                                 </p>
+                                 <div className="flex items-center gap-2">
+                                   <p className={`text-xs font-mono font-bold ${previewScores[pid].points > 0 ? 'text-emerald-400' : previewScores[pid].points < 0 ? 'text-rose-400' : 'text-slate-500'}`}>
+                                     {previewScores[pid].points > 0 ? '+' : ''}{previewScores[pid].points} pts
+                                   </p>
+                                   <p className="text-[10px] text-slate-500 font-mono">
+                                     (Rs. {(previewScores[pid].points * rate).toFixed(0)})
+                                   </p>
+                                 </div>
                                )}
                             </div>
                          </div>
@@ -468,7 +481,7 @@ export function GameRoom({ user }: { user: User }) {
                                 min="0" 
                                 placeholder="0"
                                 className="h-10 bg-slate-800 border-slate-700 text-white rounded-xl text-center font-bold"
-                                disabled={faultPlayer !== 'none'}
+                                disabled={faultPlayer !== 'none' && game.rules?.cancelMaalOnFault}
                                 value={currentMaalInputs[pid] || ''}
                                 onChange={e => { playTick(); setCurrentMaalInputs(prev => ({ ...prev, [pid]: e.target.value })); }}
                               />
@@ -575,9 +588,9 @@ export function GameRoom({ user }: { user: User }) {
                <CardHeader className="bg-gradient-to-r from-amber-500/10 to-transparent border-b border-slate-800/50">
                  <CardTitle className="text-xl flex items-center gap-3">
                    <Crown className="text-amber-500" fill="currentColor" />
-                   Leaderboard
+                   Standings
                  </CardTitle>
-                 <CardDescription className="text-slate-500 italic">Total points across all rounds</CardDescription>
+                 <CardDescription className="text-slate-500 italic">Total points & NPR value</CardDescription>
                </CardHeader>
                <CardContent className="pt-6">
                  <div className="space-y-4">
@@ -601,7 +614,9 @@ export function GameRoom({ user }: { user: User }) {
                                </div>
                                <div>
                                  <p className="font-bold text-white text-sm">{game.players[pid].name}</p>
-                                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">{idx === 0 ? 'Current Leader' : 'Player'}</p>
+                                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+                                   Rs. {(pts * rate).toFixed(0)}
+                                 </p>
                                </div>
                             </div>
                             <div className={`text-xl font-black font-mono ${pts > 0 ? 'text-emerald-400' : pts < 0 ? 'text-rose-400' : 'text-slate-500'}`}>
@@ -615,8 +630,8 @@ export function GameRoom({ user }: { user: User }) {
                </CardContent>
                <div className="p-4 bg-slate-800/20 border-t border-slate-800/50 rounded-b-3xl">
                   <div className="flex items-center gap-2 text-xs text-slate-600 font-bold uppercase tracking-widest justify-center">
-                    <UserCircle2 className="w-3 h-3" />
-                    Live Table Status: Synchronized
+                    <Banknote className="w-3 h-3" />
+                    Value based on Rs. {rate}/pt
                   </div>
                </div>
              </Card>

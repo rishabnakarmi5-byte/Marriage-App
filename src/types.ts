@@ -16,6 +16,17 @@ export type MatchData = {
   updatedAt: number;
 };
 
+export type GameRules = {
+  rate: number;
+  normalSeen: number;
+  normalUnseen: number;
+  dubliSeen: number;
+  dubliUnseen: number;
+  faultNormal: number;
+  faultDubli: number;
+  cancelMaalOnFault: boolean;
+};
+
 export type GameData = {
   id?: string;
   ownerId: string;
@@ -23,6 +34,7 @@ export type GameData = {
   playerIds: string[];
   players: Record<string, { name: string; totalScore: number }>;
   currentMatch: number;
+  rules: GameRules;
   matchCount?: number;
   lastWinnerId?: string | null;
   createdAt: number;
