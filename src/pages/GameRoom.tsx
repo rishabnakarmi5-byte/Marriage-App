@@ -402,7 +402,7 @@ export function GameRoom({ user }: { user: User }) {
           
           <div className="grid gap-4 max-w-xl mx-auto mb-10">
             {game.playerIds
-              .sort((a, b) => (game.players[b].totalScore || 0) - (game.players[a].totalScore || 0))
+              .sort((a, b) => (game.players[b]?.totalScore || 0) - (game.players[a]?.totalScore || 0))
               .map((pid, idx) => (
                 <div key={pid} className="flex justify-between items-center p-6 bg-slate-800/50 rounded-2xl border border-slate-700/50">
                   <div className="flex items-center gap-4">
@@ -531,12 +531,12 @@ export function GameRoom({ user }: { user: User }) {
                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold relative ${
                               winnerId === pid ? 'bg-amber-500 text-slate-900 shadow-lg shadow-amber-500/20' : 'bg-slate-700 text-slate-300'
                             }`}>
-                              {game.players[pid].name.charAt(0).toUpperCase()}
+                              {game.players[pid]?.name.charAt(0).toUpperCase()}
                               {winnerId === pid && <Crown className="absolute -top-3 -right-2 w-5 h-5 text-amber-400 animate-crown" fill="currentColor" />}
                             </div>
                             <div>
-                               <p className="font-bold text-white">{game.players[pid].name}</p>
-                               {previewScores && (
+                               <p className="font-bold text-white">{game.players[pid]?.name}</p>
+                               {previewScores && previewScores[pid] && (
                                  <div className="flex items-center gap-2">
                                    <p className={`text-xs font-mono font-bold ${previewScores[pid].points > 0 ? 'text-emerald-400' : previewScores[pid].points < 0 ? 'text-rose-400' : 'text-slate-500'}`}>
                                      {previewScores[pid].points > 0 ? '+' : ''}{previewScores[pid].points} {t('points')}
@@ -648,7 +648,7 @@ export function GameRoom({ user }: { user: User }) {
                         <TableHead className="w-[80px] font-bold text-slate-400">#</TableHead>
                         <TableHead className="w-[100px] font-bold text-slate-400">{t('type')}</TableHead>
                         {game.playerIds.map(pid => (
-                          <TableHead key={pid} className="text-right font-bold text-slate-400">{game.players[pid].name}</TableHead>
+                          <TableHead key={pid} className="text-right font-bold text-slate-400">{game.players[pid]?.name}</TableHead>
                         ))}
                         <TableHead className="w-[60px]"></TableHead>
                      </TableRow>
@@ -724,9 +724,9 @@ export function GameRoom({ user }: { user: User }) {
                <CardContent className="pt-6">
                  <div className="space-y-4">
                     {game.playerIds
-                      .sort((a, b) => (game.players[b].totalScore || 0) - (game.players[a].totalScore || 0))
+                      .sort((a, b) => (game.players[b]?.totalScore || 0) - (game.players[a]?.totalScore || 0))
                       .map((pid, idx) => {
-                        const pts = game.players[pid].totalScore;
+                        const pts = game.players[pid]?.totalScore || 0;
                         return (
                           <div 
                             key={pid} 
@@ -741,7 +741,7 @@ export function GameRoom({ user }: { user: User }) {
                                  {idx + 1}
                                </div>
                                <div>
-                                 <p className="font-bold text-white text-sm">{game.players[pid].name}</p>
+                                 <p className="font-bold text-white text-sm">{game.players[pid]?.name}</p>
                                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
                                    Rs. {(pts * rate).toFixed(0)}
                                  </p>

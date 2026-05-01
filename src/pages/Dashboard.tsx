@@ -243,11 +243,10 @@ export function Dashboard({ user }: { user: User }) {
         </motion.div>
       </div>
 
-      {/* Ongoing games */}
       <div className="mt-12">
         <h2 className="text-2xl font-bold mb-6 flex items-center text-white">
-          <Crown className="mr-3 text-amber-400 w-6 h-6" />
-          {t('standings')}
+          <Zap className="mr-3 text-amber-400 w-6 h-6" />
+          {t('liveTables')}
         </h2>
         {ongoingGames.length === 0 ? (
           <div className="p-10 text-center bg-slate-800/30 rounded-2xl border-2 border-dashed border-slate-700/50">
